@@ -274,6 +274,14 @@
     {% endif %}
   </div>
 
+  <!-- Saved filters restore banner -->
+  <div id="savedFiltersBanner" class="alert alert-info d-flex align-items-center gap-3 py-2 mb-2" style="display:none!important">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>
+    <span class="flex-grow-1 small">Hai filtri salvati dalla sessione precedente.</span>
+    <button type="button" class="btn btn-sm btn-info" id="restoreFiltersBtn">Ripristina filtri</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="discardFiltersBtn">Ignora</button>
+  </div>
+
   <form id="itemFilter" method="get" action="{{ url_for('articles') }}" class="row g-2 align-items-end mb-3">
     <div class="col-md-3">
       <label class="form-label small text-muted mb-1">Ricerca</label>
@@ -346,7 +354,7 @@
     </div>
     <div class="col-md-3 d-flex flex-wrap gap-2">
       <button class="btn btn-outline-primary btn-sm flex-grow-1">Filtra</button>
-      <a href="{{ url_for('articles') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
+      <a href="{{ url_for('articles') }}" class="btn btn-outline-secondary btn-sm" id="filterResetBtn">Reset</a>
     </div>
     <div class="col-md-2">
       <label class="form-label small text-muted mb-1">Modificati negli ultimi</label>
@@ -631,6 +639,73 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   goToWizardStep(1);
   {% endif %}
+
+  // --- Persistent filters (sessionStorage) ---
+  const FILTER_KEY = 'articlesFilter_v1';
+  const FILTER_FIELDS = ['q','category_id','subtype_id','material_id','finish_id',
+    'measure','share_drawer','pos_cabinet_id','pos_col','pos_row',
+    'modified_recent_days','modified_from','modified_to','stock'];
+  const filterForm = document.getElementById('itemFilter');
+  const banner = document.getElementById('savedFiltersBanner');
+  const urlParams = new URLSearchParams(window.location.search);
+  const hasUrlFilters = FILTER_FIELDS.some(k => urlParams.get(k));
+
+  // Save filters on submit
+  filterForm?.addEventListener('submit', () => {
+    const data = {};
+    const stockVal = urlParams.get('stock');
+    if (stockVal) data['stock'] = stockVal;
+    filterForm.querySelectorAll('[name]').forEach(el => {
+      if (el.value) data[el.name] = el.value;
+    });
+    if (Object.keys(data).length > 0) {
+      sessionStorage.setItem(FILTER_KEY, JSON.stringify(data));
+    } else {
+      sessionStorage.removeItem(FILTER_KEY);
+    }
+  });
+
+  // Save current URL params if any filters are active
+  if (hasUrlFilters) {
+    const data = {};
+    FILTER_FIELDS.forEach(k => { const v = urlParams.get(k); if (v) data[k] = v; });
+    sessionStorage.setItem(FILTER_KEY, JSON.stringify(data));
+  }
+
+  // Show restore banner if no current filters but saved ones exist
+  if (!hasUrlFilters && banner) {
+    const saved = sessionStorage.getItem(FILTER_KEY);
+    if (saved) {
+      try {
+        const data = JSON.parse(saved);
+        if (Object.keys(data).length > 0) {
+          banner.style.removeProperty('display');
+        }
+      } catch(_) {}
+    }
+  }
+
+  // Restore saved filters
+  document.getElementById('restoreFiltersBtn')?.addEventListener('click', () => {
+    const saved = sessionStorage.getItem(FILTER_KEY);
+    if (!saved) return;
+    try {
+      const data = JSON.parse(saved);
+      const params = new URLSearchParams(data);
+      window.location.href = `{{ url_for('articles') }}?${params.toString()}`;
+    } catch(_) {}
+  });
+
+  // Discard saved filters
+  document.getElementById('discardFiltersBtn')?.addEventListener('click', () => {
+    sessionStorage.removeItem(FILTER_KEY);
+    if (banner) banner.style.display = 'none';
+  });
+
+  // Reset also clears saved filters
+  document.getElementById('filterResetBtn')?.addEventListener('click', () => {
+    sessionStorage.removeItem(FILTER_KEY);
+  });
 });
 
 </script>
