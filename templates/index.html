@@ -405,7 +405,7 @@ function openSlotModal(col, row){
     tbody.querySelectorAll('button[data-remove-id]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const id = btn.getAttribute('data-remove-id');
-        if (!confirm('Rimuovere la posizione per questo articolo?')) return;
+        if (!await window.confirmAction('Rimuovere la posizione per questo articolo?')) return;
         try {
           const url = CLEAR_URL_TEMPLATE.replace('0', id);
           const resp = await fetch(url, { method: 'POST' });

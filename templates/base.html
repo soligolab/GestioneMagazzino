@@ -285,6 +285,29 @@
       </div>
     </div>
   </nav>
+  <!-- Global Confirm Modal -->
+  <div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title text-danger d-flex align-items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+            </svg>
+            Conferma operazione
+          </h5>
+        </div>
+        <div class="modal-body pt-2">
+          <p class="mb-0" id="confirmModalMsg"></p>
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
+          <button type="button" class="btn btn-danger" id="confirmModalOk">Conferma</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="{{ container_class|default('container') }} {{ container_extra_class|default('') }} py-3">
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
@@ -346,6 +369,54 @@
           form.classList.add('was-validated');
         }, false);
       });
+
+      // --- Global Confirm Modal ---
+      let _confirmResolve = null;
+      const confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+      const confirmModalMsg = document.getElementById('confirmModalMsg');
+      const confirmModalOk = document.getElementById('confirmModalOk');
+
+      // Promise-based API for JS code: await window.confirmAction('msg')
+      window.confirmAction = (msg) => new Promise(resolve => {
+        confirmModalMsg.textContent = msg;
+        confirmModalOk.onclick = () => { confirmModal.hide(); resolve(true); };
+        document.getElementById('confirmModal').addEventListener('hidden.bs.modal', () => resolve(false), { once: true });
+        confirmModal.show();
+      });
+
+      // Handle data-confirm on forms (submit intercept)
+      document.addEventListener('submit', (e) => {
+        const form = e.target;
+        const msg = form.dataset.confirm;
+        if (msg && !form.dataset.confirmed) {
+          e.preventDefault();
+          confirmModalMsg.textContent = msg;
+          confirmModalOk.onclick = () => {
+            form.dataset.confirmed = '1';
+            confirmModal.hide();
+            form.submit();
+          };
+          confirmModal.show();
+        } else if (form.dataset.confirmed) {
+          delete form.dataset.confirmed;
+        }
+      }, true);
+
+      // Handle data-confirm on buttons (click intercept)
+      document.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-confirm], a[data-confirm]');
+        if (!btn) return;
+        if (btn.dataset.confirmed) { delete btn.dataset.confirmed; return; }
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        confirmModalMsg.textContent = btn.dataset.confirm;
+        confirmModalOk.onclick = () => {
+          btn.dataset.confirmed = '1';
+          confirmModal.hide();
+          btn.click();
+        };
+        confirmModal.show();
+      }, true);
 
       // --- Global Search Autocomplete ---
       const searchWrap = document.getElementById('globalSearchWrap');

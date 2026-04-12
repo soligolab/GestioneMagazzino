@@ -471,7 +471,7 @@ document.addEventListener('DOMContentLoaded', function(){
         tbody.querySelectorAll('button[data-remove-id]').forEach(btn => {
           btn.addEventListener('click', async () => {
             const id = btn.getAttribute('data-remove-id');
-            if (!confirm('Rimuovere la posizione per questo articolo?')) return;
+            if (!await window.confirmAction('Rimuovere la posizione per questo articolo?')) return;
             try {
               const url = CLEAR_URL_TEMPLATE.replace('0', id);
               const resp = await fetch(url, { method: 'POST' });
@@ -697,13 +697,13 @@ document.addEventListener('DOMContentLoaded', function(){
           return;
         }
         const dirLabel = direction === 'V' ? 'verticale' : 'orizzontale';
-        const rangeConfirm = confirm(`De-allocare ${countVal} celle (${dirLabel}) a partire da ${colVal}${rowVal}?`);
+        const rangeConfirm = await window.confirmAction(`De-allocare ${countVal} celle (${dirLabel}) a partire da ${colVal}${rowVal}?`);
         if (!rangeConfirm) { ev.preventDefault(); return; }
       } else {
-        const fullConfirm = confirm('Confermi di voler de-allocare TUTTA la categoria dalla cassettiera selezionata?');
+        const fullConfirm = await window.confirmAction('Confermi di voler de-allocare TUTTA la categoria dalla cassettiera selezionata?');
         if (!fullConfirm) { ev.preventDefault(); return; }
       }
-      const safetyConfirm = confirm('Operazione invasiva: sarà necessario ristampare tutte le etichette e riposizionare i cassetti. Procedere comunque?');
+      const safetyConfirm = await window.confirmAction('Operazione invasiva: sarà necessario ristampare tutte le etichette e riposizionare i cassetti. Procedere comunque?');
       if (!safetyConfirm) { ev.preventDefault(); return; }
     });
   }

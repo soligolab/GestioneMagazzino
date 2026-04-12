@@ -27,7 +27,7 @@
                   {% if c.id in used_categories %}
                     <button class="btn btn-sm btn-outline-secondary" type="button" disabled title="Categoria in uso">Elimina</button>
                   {% else %}
-                    <button formaction="{{ url_for('delete_category', cat_id=c.id) }}" formmethod="post" class="btn btn-sm btn-outline-danger" onclick="return confirm('Eliminare categoria?')">Elimina</button>
+                    <button formaction="{{ url_for('delete_category', cat_id=c.id) }}" formmethod="post" class="btn btn-sm btn-outline-danger" data-confirm="Eliminare la categoria '{{ c.name }}'?">Elimina</button>
                   {% endif %}
                 </div>
               </form>
@@ -106,7 +106,7 @@
               {% if st.id in used_subtypes %}
                 <button class="btn btn-sm btn-outline-secondary" type="button" disabled title="Sottotipo in uso">Elimina</button>
               {% else %}
-                <button formaction="{{ url_for('delete_subtype', st_id=st.id) }}" formmethod="post" class="btn btn-sm btn-outline-danger" onclick="return confirm('Eliminare sottotipo?')">Elimina</button>
+                <button formaction="{{ url_for('delete_subtype', st_id=st.id) }}" formmethod="post" class="btn btn-sm btn-outline-danger" data-confirm="Eliminare il sottotipo '{{ st.name }}'?">Elimina</button>
               {% endif %}
             </div>
           </form>
@@ -139,7 +139,7 @@
                   {% if m.id in used_materials %}
                     <button class="btn btn-sm btn-outline-secondary" type="button" disabled title="Materiale in uso">Elimina</button>
                   {% else %}
-                    <button formaction="{{ url_for('delete_material', mat_id=m.id) }}" formmethod="post" class="btn btn-sm btn-outline-danger" onclick="return confirm('Eliminare materiale?')">Elimina</button>
+                    <button formaction="{{ url_for('delete_material', mat_id=m.id) }}" formmethod="post" class="btn btn-sm btn-outline-danger" data-confirm="Eliminare il materiale '{{ m.name }}'?">Elimina</button>
                   {% endif %}
                 </div>
               </form>
@@ -187,7 +187,7 @@
                   {% if f.id in used_finishes %}
                     <button class="btn btn-sm btn-outline-secondary" type="button" disabled title="Finitura in uso">Elimina</button>
                   {% else %}
-                    <button formaction="{{ url_for('delete_finish', fin_id=f.id) }}" formmethod="post" class="btn btn-sm btn-outline-danger" onclick="return confirm('Eliminare finitura?')">Elimina</button>
+                    <button formaction="{{ url_for('delete_finish', fin_id=f.id) }}" formmethod="post" class="btn btn-sm btn-outline-danger" data-confirm="Eliminare la finitura '{{ f.name }}'?">Elimina</button>
                   {% endif %}
                 </div>
               </form>

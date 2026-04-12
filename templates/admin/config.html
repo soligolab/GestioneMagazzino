@@ -59,7 +59,7 @@
               {% if c.id in used_categories %}
                 <button class="btn btn-sm btn-outline-secondary ms-1" type="button" disabled title="Categoria in uso">Elimina</button>
               {% else %}
-                <form method="post" action="{{ url_for('delete_category', cat_id=c.id) }}" class="d-inline-block" onsubmit="return confirm('Eliminare categoria?')">
+                <form method="post" action="{{ url_for('delete_category', cat_id=c.id) }}" class="d-inline-block" data-confirm="Eliminare la categoria '{{ c.name }}'?">
                   <button class="btn btn-sm btn-outline-danger ms-1">Elimina</button>
                 </form>
               {% endif %}
@@ -148,7 +148,7 @@
               {% if st.id in used_subtypes %}
                 <button class="btn btn-sm btn-outline-secondary ms-1" type="button" disabled title="Sottotipo in uso">Elimina</button>
               {% else %}
-                <form method="post" action="{{ url_for('delete_subtype', st_id=st.id) }}" class="d-inline-block" onsubmit="return confirm('Eliminare sottotipo?')">
+                <form method="post" action="{{ url_for('delete_subtype', st_id=st.id) }}" class="d-inline-block" data-confirm="Eliminare il sottotipo '{{ st.name }}'?">
                   <button class="btn btn-sm btn-outline-danger ms-1">Elimina</button>
                 </form>
               {% endif %}
@@ -181,7 +181,7 @@
               {% if m.id in used_materials %}
                 <button class="btn btn-sm btn-outline-secondary ms-1" type="button" disabled title="Materiale in uso">Elimina</button>
               {% else %}
-                <form method="post" action="{{ url_for('delete_material', mat_id=m.id) }}" class="d-inline-block" onsubmit="return confirm('Eliminare materiale?')">
+                <form method="post" action="{{ url_for('delete_material', mat_id=m.id) }}" class="d-inline-block" data-confirm="Eliminare il materiale '{{ m.name }}'?">
                   <button class="btn btn-sm btn-outline-danger ms-1">Elimina</button>
                 </form>
               {% endif %}
@@ -222,7 +222,7 @@
               {% if f.id in used_finishes %}
                 <button class="btn btn-sm btn-outline-secondary ms-1" type="button" disabled title="Finitura in uso">Elimina</button>
               {% else %}
-                <form method="post" action="{{ url_for('delete_finish', fin_id=f.id) }}" class="d-inline-block" onsubmit="return confirm('Eliminare finitura?')">
+                <form method="post" action="{{ url_for('delete_finish', fin_id=f.id) }}" class="d-inline-block" data-confirm="Eliminare la finitura '{{ f.name }}'?">
                   <button class="btn btn-sm btn-outline-danger ms-1">Elimina</button>
                 </form>
               {% endif %}
@@ -663,7 +663,7 @@
                 </form>
               </td>
               <td class="text-end">
-                <form method="post" action="{{ url_for('delete_custom_field', field_id=field.id) }}" onsubmit="return confirm('Eliminare il campo personalizzato?')">
+                <form method="post" action="{{ url_for('delete_custom_field', field_id=field.id) }}" data-confirm="Eliminare il campo '{{ field.name }}'?">
                   <button class="btn btn-sm btn-outline-danger w-100">Elimina</button>
                 </form>
               </td>
@@ -695,7 +695,7 @@
                 <div class="col-md-9"><input class="form-control" name="name" value="{{ l.name }}"></div>
                 <div class="col-md-3">
                   <button class="btn btn-sm btn-primary">Salva</button>
-                  <button formaction="{{ url_for('delete_location', loc_id=l.id) }}" formmethod="post" class="btn btn-sm btn-outline-danger" onclick="return confirm('Eliminare ubicazione?')">Elimina</button>
+                  <button formaction="{{ url_for('delete_location', loc_id=l.id) }}" formmethod="post" class="btn btn-sm btn-outline-danger" data-confirm="Eliminare l'ubicazione '{{ l.name }}'?">Elimina</button>
                 </div>
               </form>
             </td>
@@ -761,7 +761,7 @@
               <form method="post" action="{{ url_for('update_cabinet', cab_id=c.id) }}" id="cabinet-form-{{ c.id }}" class="d-grid gap-1"></form>
               <div class="d-grid gap-1">
                 <button class="btn btn-sm btn-primary" form="cabinet-form-{{ c.id }}">Salva</button>
-                <button formaction="{{ url_for('delete_cabinet', cab_id=c.id) }}" formmethod="post" class="btn btn-sm btn-outline-danger" onclick="return confirm('Eliminare cassettiera?')" form="cabinet-form-{{ c.id }}">Elimina</button>
+                <button formaction="{{ url_for('delete_cabinet', cab_id=c.id) }}" formmethod="post" class="btn btn-sm btn-outline-danger" data-confirm="Eliminare la cassettiera '{{ c.name }}'?" form="cabinet-form-{{ c.id }}">Elimina</button>
               </div>
             </td>
           </tr>
@@ -799,7 +799,7 @@
             <td>{{ m.col_end }}{{ m.row_end }}</td>
             <td>
               <form method="post" action="{{ url_for('delete_drawer_merge', merge_id=m.id) }}">
-                <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Eliminare fusione?')">Elimina</button>
+                <button class="btn btn-sm btn-outline-danger" data-confirm="Eliminare la fusione {{ m.col_start }}{{ m.row_start }}–{{ m.col_end }}{{ m.row_end }}?">Elimina</button>
               </form>
             </td>
           </tr>
@@ -904,7 +904,7 @@
                 <button class="btn btn-sm btn-primary">Salva</button>
               </form>
               {% if not r.is_system %}
-                <form method="post" action="{{ url_for('delete_role', role_id=r.id) }}" class="d-inline-block" onsubmit="return confirm('Eliminare il ruolo?')">
+                <form method="post" action="{{ url_for('delete_role', role_id=r.id) }}" class="d-inline-block" data-confirm="Eliminare il ruolo '{{ r.name }}'?">
                   <button class="btn btn-sm btn-outline-danger ms-1">Elimina</button>
                 </form>
               {% endif %}

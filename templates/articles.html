@@ -436,7 +436,7 @@
             <td class="text-center">{% if it.share_drawer %}&#10003;{% endif %}</td>
             <td class="text-nowrap">
               <a href="{{ url_for('edit_item', item_id=it.id, next=current_url) }}" class="btn btn-sm btn-outline-primary">Modifica</a>
-              <form method="post" action="{{ url_for('delete_item', item_id=it.id) }}" class="d-inline" onsubmit="return confirm('Eliminare articolo?')">
+              <form method="post" action="{{ url_for('delete_item', item_id=it.id) }}" class="d-inline" data-confirm="Eliminare l'articolo '{{ compose_caption(it) }}'?">
                 <input type="hidden" name="next" value="{{ current_url }}">
                 <button class="btn btn-sm btn-outline-danger">Elimina</button>
               </form>

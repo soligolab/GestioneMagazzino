@@ -165,7 +165,7 @@
       <button class="btn btn-outline-dark w-100" formaction="{{ url_for('move_item_slot', item_id=item.id) }}" formmethod="post" formnovalidate>⋯ Sposta cassetto</button>
     </div>
     <div class="col-md-3 d-flex align-items-end">
-      <button class="btn btn-outline-danger w-100" formaction="{{ url_for('clear_position', item_id=item.id) }}" formmethod="post" formnovalidate onclick="return confirm('Rimuovere posizione?')">Rimuovi</button>
+      <button class="btn btn-outline-danger w-100" formaction="{{ url_for('clear_position', item_id=item.id) }}" formmethod="post" formnovalidate data-confirm="Rimuovere la posizione assegnata a questo articolo?">Rimuovi</button>
     </div>
 
     <div class="col-12 text-end mt-3">
@@ -274,8 +274,8 @@ function switchDatalist(){
       }
       if (j.share_blockers && !forceShare) {
         const names = j.share_blockers.map(b=>b.name).join(', ');
-        const confirmMsg = 'Il cassetto contiene articoli che non supportano la condivisione.\\nVuoi impostare \"Permetti di condividere il cassetto con altri articoli compatibili\" per tutti gli articoli coinvolti?\\nCoinvolti: ' + names;
-        if (confirm(confirmMsg)) {
+        const confirmMsg = `Il cassetto contiene articoli che non supportano la condivisione.\nVuoi abilitare "Condividi cassetto" per tutti gli articoli coinvolti?\nCoinvolti: ${names}`;
+        if (await window.confirmAction(confirmMsg)) {
           return submitPosition(true);
         }
       }
