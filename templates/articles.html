@@ -67,162 +67,195 @@
 
 {% if can_manage_items %}
 <div class="form-section mb-3" id="newItemForm">
-  <h5 class="mb-2">Nuovo articolo</h5>
-  <form method="post" action="{{ url_for('add_item') }}" class="needs-validation" novalidate>
-    <div class="row g-2">
-      <div class="col-md-6 field-block" data-field-key="category_id">
-        <label class="form-label">Categoria</label>
-        <select class="form-select" name="category_id" id="catSel" required>
-          <option value="">—</option>
-          {% for c in categories %}
-            <option value="{{ c.id }}" {{ 'selected' if (request.args.get('keep_category_id')|int)==c.id else '' }}>{{ c.name }}</option>
-          {% endfor %}
-        </select>
-        <div class="invalid-feedback">Seleziona una categoria.</div>
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h5 class="mb-0">Nuovo articolo</h5>
+    <!-- Step indicator -->
+    <div class="d-flex align-items-center gap-1" id="wizardSteps" aria-label="Passaggi">
+      <div class="wizard-step active" data-step="1">
+        <span class="wizard-step-num">1</span>
+        <span class="wizard-step-label d-none d-sm-inline">Tipo</span>
       </div>
-      <div class="col-md-6 field-block" data-field-key="subtype_id">
-        <label class="form-label">Sottotipo (forma)</label>
-        <select class="form-select" name="subtype_id" id="subtypeSel">
-          <option value="">—</option>
-        </select>
+      <div class="wizard-step-line"></div>
+      <div class="wizard-step" data-step="2">
+        <span class="wizard-step-num">2</span>
+        <span class="wizard-step-label d-none d-sm-inline">Specifiche</span>
       </div>
+      <div class="wizard-step-line"></div>
+      <div class="wizard-step" data-step="3">
+        <span class="wizard-step-num">3</span>
+        <span class="wizard-step-label d-none d-sm-inline">Magazzino</span>
+      </div>
+    </div>
+  </div>
 
-      <div class="col-md-4 field-block" data-field-key="thread_standard">
-        <label class="form-label">Standard</label>
-        <select class="form-select" name="thread_standard" id="stdSel">
-          {% for std in thread_standards %}
-            <option value="{{ std.code }}" {{ 'selected' if std.code == default_standard_code else '' }}>{{ std.label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-8 field-block" data-field-key="thread_size">
-        <label class="form-label">Misura (es. M3 / 1/4-20)</label>
-        <input class="form-control" name="thread_size" id="sizeInput" list="sizes-{{ default_standard_code }}" value="{{ request.args.get('keep_thread_size','') }}">
-        {% for std in thread_standards %}
-          <datalist id="sizes-{{ std.code }}">
-            {% for s in sizes_by_standard.get(std.code, []) %}<option value="{{ s }}">{% endfor %}
-          </datalist>
-        {% endfor %}
-      </div>
+  <style>
+    .wizard-step {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 13px; font-weight: 600; color: var(--muted-text);
+    }
+    .wizard-step-num {
+      width: 26px; height: 26px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--panel-border); font-size: 12px; font-weight: 700;
+      border: 2px solid transparent; transition: all .2s;
+    }
+    .wizard-step.active { color: #0d6efd; }
+    .wizard-step.active .wizard-step-num { background: #0d6efd; color: #fff; border-color: #0d6efd; }
+    .wizard-step.done .wizard-step-num { background: #198754; color: #fff; border-color: #198754; }
+    .wizard-step.done { color: #198754; }
+    .wizard-step-line { flex: 1; height: 2px; background: var(--panel-border); min-width: 24px; }
+    .wizard-panel { display: none; }
+    .wizard-panel.active { display: block; }
+  </style>
 
-      <div class="col-md-4 field-block" data-field-key="outer_d_mm">
-        <label class="form-label">Ø esterno (mm)</label>
-        <input type="number" step="0.01" class="form-control" name="outer_d_mm">
-      </div>
-      <div class="col-md-4 field-block" data-field-key="length_mm">
-        <label class="form-label" id="lengthLabelNew">{{ (measure_labels|default({})).get((request.args.get('keep_category_id')|int), 'Lunghezza/Spessore (mm)') }}</label>
-        <input type="number" step="0.01" class="form-control" name="length_mm">
-      </div>
-      <div class="col-md-2 field-block" data-field-key="inner_d_mm">
-        <label class="form-label">Ø interno (mm)</label>
-        <input type="number" step="0.01" class="form-control" name="inner_d_mm">
-      </div>
-
-      <div class="col-md-6 field-block" data-field-key="material_id">
-        <label class="form-label">Materiale</label>
-        <select class="form-select" name="material_id">
-          <option value="">—</option>
-          {% for m in materials %}<option value="{{ m.id }}" {{ 'selected' if (request.args.get('keep_material_id')|int)==m.id else '' }}>{{ m.name }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="col-md-6 field-block" data-field-key="finish_id">
-        <label class="form-label">Finitura</label>
-        <select class="form-select" name="finish_id">
-          <option value="">—</option>
-          {% for f in finishes %}<option value="{{ f.id }}" {{ 'selected' if (request.args.get('keep_finish_id')|int)==f.id else '' }}>{{ f.name }}</option>{% endfor %}
-        </select>
-      </div>
-
-      <div class="col-md-12 field-block" data-field-key="description">
-        <label class="form-label">Descrizione (opz.)</label>
-        <input type="text" class="form-control" name="description" value="{{ request.args.get('keep_description','') }}">
-      </div>
-
-      {% if custom_fields %}
-      <div class="col-12">
-        <label class="form-label d-block">Campi personalizzati</label>
-      </div>
-      {% for field in custom_fields %}
-      <div class="col-md-6 field-block" data-field-key="custom_{{ field.id }}">
-        <label class="form-label">{{ field.name }}{% if field.unit %} ({{ field.unit }}){% endif %}</label>
-        {% if field.field_type == 'select' %}
-          <select class="form-select" name="custom_field_{{ field.id }}">
+  <form method="post" action="{{ url_for('add_item') }}" class="needs-validation" novalidate id="newItemWizardForm">
+    <!-- Step 1: Tipo -->
+    <div class="wizard-panel active" data-panel="1">
+      <div class="row g-2">
+        <div class="col-md-6 field-block" data-field-key="category_id">
+          <label class="form-label">Categoria <span class="text-danger">*</span></label>
+          <select class="form-select" name="category_id" id="catSel" required>
             <option value="">—</option>
-            {% for opt in field.options %}
-              <option value="{{ opt }}">{{ opt }}</option>
+            {% for c in categories %}
+              <option value="{{ c.id }}" {{ 'selected' if (request.args.get('keep_category_id')|int)==c.id else '' }}>{{ c.name }}</option>
             {% endfor %}
           </select>
-        {% elif field.field_type == 'number' %}
-          <input type="number" step="0.01" class="form-control" name="custom_field_{{ field.id }}">
-        {% else %}
-          <input type="text" class="form-control" name="custom_field_{{ field.id }}">
+          <div class="invalid-feedback">Seleziona una categoria.</div>
+        </div>
+        <div class="col-md-6 field-block" data-field-key="subtype_id">
+          <label class="form-label">Sottotipo (forma)</label>
+          <select class="form-select" name="subtype_id" id="subtypeSel">
+            <option value="">—</option>
+          </select>
+        </div>
+        <div class="col-md-4 field-block" data-field-key="thread_standard">
+          <label class="form-label">Standard filettatura</label>
+          <select class="form-select" name="thread_standard" id="stdSel">
+            {% for std in thread_standards %}
+              <option value="{{ std.code }}" {{ 'selected' if std.code == default_standard_code else '' }}>{{ std.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-8 field-block" data-field-key="thread_size">
+          <label class="form-label">Misura (es. M3 / 1/4-20)</label>
+          <input class="form-control" name="thread_size" id="sizeInput" list="sizes-{{ default_standard_code }}" value="{{ request.args.get('keep_thread_size','') }}">
+          {% for std in thread_standards %}
+            <datalist id="sizes-{{ std.code }}">
+              {% for s in sizes_by_standard.get(std.code, []) %}<option value="{{ s }}">{% endfor %}
+            </datalist>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2: Specifiche -->
+    <div class="wizard-panel" data-panel="2">
+      <div class="row g-2">
+        <div class="col-md-4 field-block" data-field-key="outer_d_mm">
+          <label class="form-label">Ø esterno (mm)</label>
+          <input type="number" step="0.01" class="form-control" name="outer_d_mm">
+        </div>
+        <div class="col-md-4 field-block" data-field-key="length_mm">
+          <label class="form-label" id="lengthLabelNew">{{ (measure_labels|default({})).get((request.args.get('keep_category_id')|int), 'Lunghezza/Spessore (mm)') }}</label>
+          <input type="number" step="0.01" class="form-control" name="length_mm">
+        </div>
+        <div class="col-md-4 field-block" data-field-key="inner_d_mm">
+          <label class="form-label">Ø interno (mm)</label>
+          <input type="number" step="0.01" class="form-control" name="inner_d_mm">
+        </div>
+        <div class="col-md-6 field-block" data-field-key="material_id">
+          <label class="form-label">Materiale</label>
+          <select class="form-select" name="material_id">
+            <option value="">—</option>
+            {% for m in materials %}<option value="{{ m.id }}" {{ 'selected' if (request.args.get('keep_material_id')|int)==m.id else '' }}>{{ m.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6 field-block" data-field-key="finish_id">
+          <label class="form-label">Finitura</label>
+          <select class="form-select" name="finish_id">
+            <option value="">—</option>
+            {% for f in finishes %}<option value="{{ f.id }}" {{ 'selected' if (request.args.get('keep_finish_id')|int)==f.id else '' }}>{{ f.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-12 field-block" data-field-key="description">
+          <label class="form-label">Descrizione (opz.)</label>
+          <input type="text" class="form-control" name="description" value="{{ request.args.get('keep_description','') }}">
+        </div>
+        {% if custom_fields %}
+        <div class="col-12"><label class="form-label d-block fw-semibold">Campi personalizzati</label></div>
+        {% for field in custom_fields %}
+        <div class="col-md-6 field-block" data-field-key="custom_{{ field.id }}">
+          <label class="form-label">{{ field.name }}{% if field.unit %} ({{ field.unit }}){% endif %}</label>
+          {% if field.field_type == 'select' %}
+            <select class="form-select" name="custom_field_{{ field.id }}">
+              <option value="">—</option>
+              {% for opt in field.options %}<option value="{{ opt }}">{{ opt }}</option>{% endfor %}
+            </select>
+          {% elif field.field_type == 'number' %}
+            <input type="number" step="0.01" class="form-control" name="custom_field_{{ field.id }}">
+          {% else %}
+            <input type="text" class="form-control" name="custom_field_{{ field.id }}">
+          {% endif %}
+        </div>
+        {% endfor %}
         {% endif %}
       </div>
-      {% endfor %}
-      {% endif %}
+    </div>
 
-      <div class="col-md-4 field-block" data-field-key="quantity">
-        <label class="form-label">Quantità</label>
-        <input type="number" min="0" step="1" class="form-control" name="quantity" value="0">
-      </div>
-
-      <div class="col-12"><hr></div>
-
-      <div class="col-md-4">
-        <label class="form-label">Cassettiera</label>
-        <select class="form-select" name="cabinet_id">
-          <option value="">(assegna dopo)</option>
-          {% for c in cabinets %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">Colonna (A..ZZ)</label>
-        <input class="form-control" name="col_code" placeholder="es. D">
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">Riga (1..128)</label>
-        <input type="number" min="1" max="128" class="form-control" name="row_num">
-      </div>
-
-      <div class="col-12"><hr></div>
-
-      <div class="col-md-4 field-block" data-field-key="share_drawer">
-        <label class="form-label">Condividi cassetto</label>
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" name="share_drawer" id="shareDrawerNew">
-          <label class="form-check-label" for="shareDrawerNew">Permetti di condividere il cassetto con altri articoli compatibili</label>
+    <!-- Step 3: Magazzino -->
+    <div class="wizard-panel" data-panel="3">
+      <div class="row g-2">
+        <div class="col-md-4 field-block" data-field-key="quantity">
+          <label class="form-label">Quantità</label>
+          <input type="number" min="0" step="1" class="form-control" name="quantity" value="0">
         </div>
-      </div>
-      <div class="col-md-8">
-        <label class="form-label d-block">Campi in etichetta</label>
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="checkbox" name="label_show_category" checked>
-          <label class="form-check-label">Categoria</label>
+        <div class="col-12"><p class="text-muted small mb-1">Posizione in cassettiera (opzionale — puoi assegnare dopo)</p></div>
+        <div class="col-md-4">
+          <label class="form-label">Cassettiera</label>
+          <select class="form-select" name="cabinet_id">
+            <option value="">(assegna dopo)</option>
+            {% for c in cabinets %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+          </select>
         </div>
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="checkbox" name="label_show_subtype" checked>
-          <label class="form-check-label">Sottotipo</label>
+        <div class="col-md-4">
+          <label class="form-label">Colonna (A..ZZ)</label>
+          <input class="form-control" name="col_code" placeholder="es. D">
         </div>
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="checkbox" name="label_show_thread" checked>
-          <label class="form-check-label">Filettatura</label>
+        <div class="col-md-4">
+          <label class="form-label">Riga (1..128)</label>
+          <input type="number" min="1" max="128" class="form-control" name="row_num">
         </div>
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="checkbox" name="label_show_measure" checked>
-          <label class="form-check-label">Misura</label>
+        <div class="col-12 mt-2">
+          <div class="col-md-6 field-block" data-field-key="share_drawer">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="share_drawer" id="shareDrawerNew">
+              <label class="form-check-label" for="shareDrawerNew">Permetti condivisione cassetto con articoli compatibili</label>
+            </div>
+          </div>
         </div>
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="checkbox" name="label_show_main" checked>
-          <label class="form-check-label">Ø esterno/Misura principale</label>
-        </div>
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="checkbox" name="label_show_material" checked>
-          <label class="form-check-label">Materiale</label>
+        <div class="col-12 mt-1">
+          <label class="form-label d-block fw-semibold">Campi mostrati in etichetta</label>
+          <div class="d-flex flex-wrap gap-3">
+            <div class="form-check"><input class="form-check-input" type="checkbox" name="label_show_category" checked><label class="form-check-label">Categoria</label></div>
+            <div class="form-check"><input class="form-check-input" type="checkbox" name="label_show_subtype" checked><label class="form-check-label">Sottotipo</label></div>
+            <div class="form-check"><input class="form-check-input" type="checkbox" name="label_show_thread" checked><label class="form-check-label">Filettatura</label></div>
+            <div class="form-check"><input class="form-check-input" type="checkbox" name="label_show_measure" checked><label class="form-check-label">Misura</label></div>
+            <div class="form-check"><input class="form-check-input" type="checkbox" name="label_show_main" checked><label class="form-check-label">Ø / Misura principale</label></div>
+            <div class="form-check"><input class="form-check-input" type="checkbox" name="label_show_material" checked><label class="form-check-label">Materiale</label></div>
+          </div>
         </div>
       </div>
+    </div>
 
-      <div class="col-12 text-end">
-        <button class="btn btn-primary">Salva</button>
+    <!-- Wizard navigation -->
+    <div class="d-flex align-items-center justify-content-between mt-3 pt-2 border-top" id="wizardNav">
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="wizardBack" style="visibility:hidden">
+        ← Indietro
+      </button>
+      <span class="text-muted small" id="wizardStepLabel">Passaggio 1 di 3</span>
+      <div class="d-flex gap-2">
+        <button type="button" class="btn btn-primary btn-sm" id="wizardNext">Avanti →</button>
+        <button type="submit" class="btn btn-success btn-sm d-none" id="wizardSave">Salva articolo</button>
       </div>
     </div>
   </form>
@@ -540,7 +573,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
     const row = params.get('new_for_row');
 
     if (cab && col && row) {
-      const formNew = document.querySelector('form[action="{{ url_for("add_item") }}"]');
+      const formNew = document.getElementById('newItemWizardForm');
       if (formNew) {
         const cabSel = formNew.querySelector('select[name=\"cabinet_id\"]');
         const colInp = formNew.querySelector('input[name=\"col_code\"]');
@@ -548,11 +581,55 @@ document.addEventListener('DOMContentLoaded', ()=>{
         if (cabSel) cabSel.value = cab;
         if (colInp) colInp.value = col;
         if (rowInp) rowInp.value = row;
+        // Jump directly to step 3 if cabinet params are given
+        goToWizardStep(3);
         cabSel?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }
   } catch (e) {
   }
+
+  // --- Wizard logic ---
+  const TOTAL_STEPS = 3;
+  let currentStep = 1;
+
+  function goToWizardStep(step) {
+    currentStep = step;
+    document.querySelectorAll('.wizard-panel').forEach(p => {
+      p.classList.toggle('active', parseInt(p.dataset.panel) === step);
+    });
+    document.querySelectorAll('[data-step]').forEach(s => {
+      const n = parseInt(s.dataset.step);
+      s.classList.remove('active', 'done');
+      if (n === step) s.classList.add('active');
+      else if (n < step) s.classList.add('done');
+    });
+    const backBtn = document.getElementById('wizardBack');
+    const nextBtn = document.getElementById('wizardNext');
+    const saveBtn = document.getElementById('wizardSave');
+    const label  = document.getElementById('wizardStepLabel');
+    if (backBtn) backBtn.style.visibility = step === 1 ? 'hidden' : 'visible';
+    if (nextBtn) nextBtn.classList.toggle('d-none', step === TOTAL_STEPS);
+    if (saveBtn) saveBtn.classList.toggle('d-none', step !== TOTAL_STEPS);
+    if (label)  label.textContent = `Passaggio ${step} di ${TOTAL_STEPS}`;
+  }
+
+  document.getElementById('wizardNext')?.addEventListener('click', () => {
+    // Validate required fields in current step before advancing
+    const panel = document.querySelector(`.wizard-panel[data-panel="${currentStep}"]`);
+    const invalid = panel ? [...panel.querySelectorAll('[required]')].filter(el => !el.value.trim()) : [];
+    if (invalid.length) {
+      invalid[0].focus();
+      invalid[0].reportValidity();
+      return;
+    }
+    if (currentStep < TOTAL_STEPS) goToWizardStep(currentStep + 1);
+  });
+  document.getElementById('wizardBack')?.addEventListener('click', () => {
+    if (currentStep > 1) goToWizardStep(currentStep - 1);
+  });
+
+  goToWizardStep(1);
   {% endif %}
 });
 
