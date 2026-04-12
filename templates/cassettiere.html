@@ -40,14 +40,36 @@
   </div>
 </form>
 
-<div class="legend mb-2">
-  <span style="background:black"></span> Bloccata
-  {% for c in categories %}
-    <span style="background:{{ c.color }}; margin-left:12px;"></span> {{ c.name }}
-  {% endfor %}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+  <div class="legend">
+    <span style="background:black"></span> Bloccata
+    {% for c in categories %}
+      <span style="background:{{ c.color }}; margin-left:12px;"></span> {{ c.name }}
+    {% endfor %}
+  </div>
+  <!-- Zoom controls -->
+  <div class="d-flex align-items-center gap-2">
+    <span class="text-muted small">Zoom:</span>
+    <button class="btn btn-outline-secondary btn-sm" id="zoomOut" title="Riduci (-)">−</button>
+    <span class="small fw-semibold" id="zoomLabel">100%</span>
+    <button class="btn btn-outline-secondary btn-sm" id="zoomIn" title="Aumenta (+)">+</button>
+    <button class="btn btn-outline-secondary btn-sm" id="zoomReset" title="Reset">⊡</button>
+  </div>
 </div>
 
-<div class="grid-wrap p-2">
+<style>
+  #gridWrap { transition: none; }
+  #gridWrap .grid-table { transition: font-size .15s; }
+  /* Ctrl+scroll hint */
+  .zoom-hint {
+    position: absolute; bottom: 8px; right: 12px;
+    font-size: 11px; color: var(--muted-text); pointer-events: none;
+    opacity: 0; transition: opacity .4s;
+  }
+  .zoom-hint.show { opacity: 1; }
+</style>
+
+<div class="grid-wrap p-2" id="gridWrap" style="position:relative">
   {% if grid.rows and grid.cols %}
   <table class="grid-table" id="grid" data-cab="{{ grid.cab.id }}" data-comp="{{ grid.cab.comp }}">
     <thead>
@@ -768,6 +790,65 @@ document.addEventListener('DOMContentLoaded', function(){
     });
   }
   {% endif %}
+
+  // --- Grid Zoom ---
+  const ZOOM_STEPS = [50, 62, 75, 87, 100, 115, 130, 150, 175, 200];
+  const ZOOM_KEY = 'gridZoom_v1';
+  let zoomIdx = ZOOM_STEPS.indexOf(100);
+  const gridWrap = document.getElementById('gridWrap');
+  const gridTable = document.getElementById('grid');
+  const zoomLabel = document.getElementById('zoomLabel');
+  let zoomHint = null;
+
+  function applyZoom(idx, save) {
+    zoomIdx = Math.max(0, Math.min(ZOOM_STEPS.length - 1, idx));
+    const pct = ZOOM_STEPS[zoomIdx];
+    if (gridTable) gridTable.style.fontSize = `${pct / 100 * 12}px`;
+    if (zoomLabel) zoomLabel.textContent = `${pct}%`;
+    const cells = gridTable?.querySelectorAll('th, td');
+    const cellSize = Math.round(pct / 100 * 64);
+    cells?.forEach(c => {
+      c.style.minWidth = cellSize + 'px';
+      c.style.height   = cellSize + 'px';
+      c.style.minHeight = cellSize + 'px';
+    });
+    if (save) sessionStorage.setItem(ZOOM_KEY, zoomIdx);
+  }
+
+  // Restore saved zoom
+  const savedZoom = parseInt(sessionStorage.getItem(ZOOM_KEY) ?? zoomIdx);
+  if (!isNaN(savedZoom)) applyZoom(savedZoom, false);
+
+  document.getElementById('zoomIn')?.addEventListener('click', () => applyZoom(zoomIdx + 1, true));
+  document.getElementById('zoomOut')?.addEventListener('click', () => applyZoom(zoomIdx - 1, true));
+  document.getElementById('zoomReset')?.addEventListener('click', () => applyZoom(ZOOM_STEPS.indexOf(100), true));
+
+  // Ctrl+scroll to zoom
+  function showHint() {
+    if (!zoomHint) {
+      zoomHint = document.createElement('div');
+      zoomHint.className = 'zoom-hint';
+      zoomHint.textContent = 'Ctrl + scroll per zoom';
+      gridWrap?.appendChild(zoomHint);
+    }
+    zoomHint.classList.add('show');
+    clearTimeout(zoomHint._timer);
+    zoomHint._timer = setTimeout(() => zoomHint.classList.remove('show'), 1800);
+  }
+  gridWrap?.addEventListener('wheel', (e) => {
+    if (!e.ctrlKey) { showHint(); return; }
+    e.preventDefault();
+    applyZoom(e.deltaY < 0 ? zoomIdx + 1 : zoomIdx - 1, true);
+  }, { passive: false });
+
+  // Keyboard shortcuts for zoom on this page
+  document.addEventListener('keydown', (e) => {
+    const typing = document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA';
+    if (typing) return;
+    if ((e.key === '+' || e.key === '=') && !e.ctrlKey) applyZoom(zoomIdx + 1, true);
+    if (e.key === '-' && !e.ctrlKey) applyZoom(zoomIdx - 1, true);
+    if (e.key === '0' && !e.ctrlKey) applyZoom(ZOOM_STEPS.indexOf(100), true);
+  });
 });
 </script>
 {% endblock %}

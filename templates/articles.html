@@ -1,5 +1,30 @@
 {% extends "base.html" %}
 {% block content %}
+<style>
+  /* Stock indicators */
+  .stock-indicator {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 13px; font-weight: 600; white-space: nowrap;
+  }
+  .stock-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .stock-out .stock-dot { background: #dc3545; box-shadow: 0 0 0 2px rgba(220,53,69,.2); }
+  .stock-low .stock-dot { background: #ffc107; box-shadow: 0 0 0 2px rgba(255,193,7,.2); }
+  .stock-ok  .stock-dot { background: #198754; box-shadow: 0 0 0 2px rgba(25,135,84,.18); }
+  .stock-out .stock-qty { color: #dc3545; }
+  .stock-low .stock-qty { color: #856404; }
+  body[data-theme="dark"] .stock-low .stock-qty { color: #ffc107; }
+  .stock-ok  .stock-qty { color: #198754; }
+  .stock-bar {
+    width: 36px; height: 4px; background: rgba(0,0,0,.1); border-radius: 2px; overflow: hidden;
+  }
+  body[data-theme="dark"] .stock-bar { background: rgba(255,255,255,.1); }
+  .stock-bar span { display: block; height: 100%; background: #ffc107; border-radius: 2px; min-width: 2px; }
+  /* KPI card accents */
+  .kpi-card-warning { border-color: rgba(255,193,7,.4) !important; }
+  .kpi-card-info    { border-color: rgba(13,202,240,.3) !important; }
+</style>
 <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
   <div>
     <h3 class="mb-1">Articoli</h3>
@@ -50,17 +75,39 @@
     </div>
   </div>
   <div class="col-lg-3 col-md-6">
-    <div class="kpi-card h-100">
-      <div class="kpi-label">Scorte basse</div>
-      <p class="kpi-value">{{ low_stock_count }}</p>
-      <div class="text-muted small">≤ {{ low_stock_threshold }} pezzi</div>
+    <div class="kpi-card h-100 {% if low_stock_count > 0 %}kpi-card-warning{% endif %}">
+      <div class="kpi-label d-flex align-items-center gap-1">
+        {% if low_stock_count > 0 %}
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="#e6a817" viewBox="0 0 16 16">
+            <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+          </svg>
+        {% endif %}
+        Scorte basse
+      </div>
+      <p class="kpi-value {% if low_stock_count > 0 %}text-warning{% endif %}">{{ low_stock_count }}</p>
+      <div class="text-muted small">≤ {{ low_stock_threshold }} pezzi
+        {% if low_stock_count > 0 %}
+          <a href="{{ url_for('articles', stock='low') }}" class="ms-1 text-warning fw-semibold small">Vedi</a>
+        {% endif %}
+      </div>
     </div>
   </div>
   <div class="col-lg-3 col-md-6">
-    <div class="kpi-card h-100">
-      <div class="kpi-label">Da posizionare</div>
-      <p class="kpi-value">{{ unplaced_count }}</p>
-      <div class="text-muted small">In attesa di posizione</div>
+    <div class="kpi-card h-100 {% if unplaced_count > 0 %}kpi-card-info{% endif %}">
+      <div class="kpi-label d-flex align-items-center gap-1">
+        {% if unplaced_count > 0 %}
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="#0dcaf0" viewBox="0 0 16 16">
+            <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/>
+          </svg>
+        {% endif %}
+        Da posizionare
+      </div>
+      <p class="kpi-value {% if unplaced_count > 0 %}text-info{% endif %}">{{ unplaced_count }}</p>
+      <div class="text-muted small">In attesa di posizione
+        {% if unplaced_count > 0 and can_manage_placements %}
+          <a href="{{ url_for('placements') }}" class="ms-1 text-info fw-semibold small">Gestisci</a>
+        {% endif %}
+      </div>
     </div>
   </div>
 </div>
@@ -266,13 +313,70 @@
   <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
     <h5 class="mb-0">Griglia articoli</h5>
     {% if can_manage_items %}
-      <div class="d-flex flex-wrap gap-2">
-        <button class="btn btn-sm btn-primary" type="submit" form="labelForm" formaction="{{ url_for('labels_pdf') }}">Stampa etichette (fogli)</button>
-        <button class="btn btn-sm btn-outline-primary" type="submit" form="labelForm" formaction="{{ url_for('cards_pdf') }}">Stampa cartellini (fogli)</button>
-        <button class="btn btn-sm btn-outline-dark" type="submit" form="labelForm" formaction="{{ url_for('dymo_labels_pdf') }}">Stampa etichette DYMO</button>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <span class="text-muted small">Seleziona articoli per stampare le etichette</span>
+        <div class="dropdown">
+          <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="selectByCatBtn" data-bs-toggle="dropdown">
+            Seleziona per categoria
+          </button>
+          <ul class="dropdown-menu" id="selectByCatMenu">
+            <li><button class="dropdown-item" type="button" data-cat-id="">Tutte le categorie</button></li>
+            <li><hr class="dropdown-divider"></li>
+            {% for c in categories %}
+              <li><button class="dropdown-item d-flex align-items-center gap-2" type="button" data-cat-id="{{ c.id }}">
+                <span class="badge-color" style="background:{{ c.color }}"></span>{{ c.name }}
+              </button></li>
+            {% endfor %}
+          </ul>
+        </div>
       </div>
     {% endif %}
   </div>
+
+  {% if can_manage_items %}
+  <!-- Bulk actions floating bar (shown when items are selected) -->
+  <style>
+    .bulk-bar {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 14px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.22);
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 1050;
+      transition: transform .25s cubic-bezier(.34,1.56,.64,1), opacity .2s;
+      opacity: 0;
+      min-width: 320px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .bulk-bar.visible {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+    .bulk-bar-count {
+      font-weight: 700;
+      font-size: 14px;
+      white-space: nowrap;
+      padding: 4px 10px;
+      background: rgba(99,130,255,.15);
+      border-radius: 20px;
+    }
+  </style>
+  <div class="bulk-bar" id="bulkBar" role="toolbar" aria-label="Azioni in blocco">
+    <span class="bulk-bar-count" id="bulkCount">0 selezionati</span>
+    <button class="btn btn-primary btn-sm" type="submit" form="labelForm" formaction="{{ url_for('labels_pdf') }}">Etichette</button>
+    <button class="btn btn-outline-primary btn-sm" type="submit" form="labelForm" formaction="{{ url_for('cards_pdf') }}">Cartellini</button>
+    <button class="btn btn-outline-dark btn-sm" type="submit" form="labelForm" formaction="{{ url_for('dymo_labels_pdf') }}">DYMO</button>
+    <button class="btn btn-outline-secondary btn-sm" type="button" id="bulkDeselect">Deseleziona</button>
+  </div>
+  {% endif %}
 
   <!-- Saved filters restore banner -->
   <div id="savedFiltersBanner" class="alert alert-info d-flex align-items-center gap-3 py-2 mb-2" style="display:none!important">
@@ -405,7 +509,7 @@
         </thead>
         <tbody>
           {% for it in items %}
-          <tr {% if can_manage_items %}data-edit-url="{{ url_for('edit_item', item_id=it.id, next=current_url) }}"{% endif %}>
+          <tr {% if can_manage_items %}data-edit-url="{{ url_for('edit_item', item_id=it.id, next=current_url) }}"{% endif %} data-cat-id="{{ it.category_id or '' }}">
             {% if can_manage_items %}<td><input type="checkbox" name="item_ids" value="{{ it.id }}"></td>{% endif %}
             <td>{{ it.id }}</td>
             <td data-order="{{ it.updated_at.isoformat() if it.updated_at else '' }}">{{ it.updated_at.strftime('%d/%m/%Y %H:%M') if it.updated_at else '' }}</td>
@@ -423,13 +527,22 @@
             <td>{{ it.material.name if it.material else '' }}</td>
             <td>
               {% if it.quantity <= 0 %}
-                <span class="badge bg-danger badge-stock">Esaurito</span>
+                <span class="stock-indicator stock-out" title="Esaurito — 0 pezzi">
+                  <span class="stock-dot"></span>
+                  <span class="stock-qty">0</span>
+                </span>
               {% elif it.quantity <= low_stock_threshold %}
-                <span class="badge bg-warning text-dark badge-stock">Scorte basse</span>
+                <span class="stock-indicator stock-low" title="Scorte basse — {{ it.quantity }} pz (soglia: {{ low_stock_threshold }})">
+                  <span class="stock-dot"></span>
+                  <span class="stock-qty">{{ it.quantity }}</span>
+                  <span class="stock-bar"><span style="width:{{ [it.quantity * 100 // low_stock_threshold, 100]|min }}%"></span></span>
+                </span>
               {% else %}
-                <span class="badge bg-success badge-stock">Disponibile</span>
+                <span class="stock-indicator stock-ok" title="Disponibile — {{ it.quantity }} pezzi">
+                  <span class="stock-dot"></span>
+                  <span class="stock-qty">{{ it.quantity }}</span>
+                </span>
               {% endif %}
-              <span class="ms-2 fw-semibold">{{ it.quantity }}</span>
             </td>
             <td>{{ pos_by_item.get(it.id, '') }}</td>
             {% if can_manage_items %}
@@ -555,8 +668,51 @@ document.addEventListener('DOMContentLoaded', ()=>{
     {% endif %}
   }
   {% if can_manage_items %}
-  document.getElementById('chkAll')?.addEventListener('change', (e)=>{
+  const chkAll = document.getElementById('chkAll');
+  const bulkBar = document.getElementById('bulkBar');
+  const bulkCount = document.getElementById('bulkCount');
+
+  function updateBulkBar() {
+    const checked = document.querySelectorAll('input[name="item_ids"]:checked');
+    const n = checked.length;
+    if (bulkBar) bulkBar.classList.toggle('visible', n > 0);
+    if (bulkCount) bulkCount.textContent = `${n} selezionat${n === 1 ? 'o' : 'i'}`;
+    if (chkAll) {
+      const all = document.querySelectorAll('input[name="item_ids"]');
+      chkAll.indeterminate = n > 0 && n < all.length;
+      chkAll.checked = all.length > 0 && n === all.length;
+    }
+  }
+
+  chkAll?.addEventListener('change', (e)=>{
     document.querySelectorAll('input[name=\"item_ids\"]').forEach(cb=> cb.checked = e.target.checked);
+    updateBulkBar();
+  });
+
+  document.addEventListener('change', (e) => {
+    if (e.target.name === 'item_ids') updateBulkBar();
+  });
+
+  document.getElementById('bulkDeselect')?.addEventListener('click', () => {
+    document.querySelectorAll('input[name="item_ids"]').forEach(cb => cb.checked = false);
+    if (chkAll) { chkAll.checked = false; chkAll.indeterminate = false; }
+    updateBulkBar();
+  });
+
+  // Select by category
+  document.querySelectorAll('#selectByCatMenu [data-cat-id]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const catId = btn.dataset.catId;
+      document.querySelectorAll('input[name="item_ids"]').forEach(cb => {
+        const row = cb.closest('tr');
+        if (!catId) {
+          cb.checked = true;
+        } else {
+          cb.checked = row?.dataset.catId === catId;
+        }
+      });
+      updateBulkBar();
+    });
   });
   const catSel = document.getElementById('catSel');
   const initialCat = parseInt(catSel?.value || 0);

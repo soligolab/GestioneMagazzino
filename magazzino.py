@@ -2283,6 +2283,31 @@ def unified_thickness_value(item: Item):
     return None
 
 
+@app.route("/item/<int:item_id>")
+def item_view(item_id):
+    """Mobile-friendly card view for QR code scans."""
+    item = Item.query.get_or_404(item_id)
+    a = (db.session.query(Assignment, Slot, Cabinet)
+         .join(Slot, Assignment.slot_id == Slot.id)
+         .join(Cabinet, Slot.cabinet_id == Cabinet.id)
+         .filter(Assignment.item_id == item.id).first())
+    position = slot_full_label(a[2], a[1], for_print=False) if a else None
+    low_stock_threshold = 5
+    custom_values = (
+        db.session.query(ItemCustomFieldValue, CustomField)
+        .join(CustomField, ItemCustomFieldValue.field_id == CustomField.id)
+        .filter(ItemCustomFieldValue.item_id == item.id)
+        .all()
+    )
+    return render_template(
+        "item_view.html",
+        item=item,
+        position=position,
+        low_stock_threshold=low_stock_threshold,
+        custom_values=custom_values,
+        can_manage_items=current_user.is_authenticated and current_user.has_permission("manage_items"),
+    )
+
 @app.route("/api/items/<int:item_id>.json")
 def api_item(item_id):
     item = Item.query.get_or_404(item_id)

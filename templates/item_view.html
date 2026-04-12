@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .item-card {
+    max-width: 480px;
+    margin: 0 auto;
+  }
+  .item-hero {
+    border-radius: 16px;
+    padding: 24px 20px 20px;
+    margin-bottom: 16px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--panel-shadow);
+    text-align: center;
+  }
+  .item-category-dot {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  .item-name {
+    font-size: clamp(20px, 6vw, 28px);
+    font-weight: 700;
+    line-height: 1.2;
+    margin: 8px 0 4px;
+  }
+  .item-category-label {
+    font-size: 14px;
+    color: var(--muted-text);
+  }
+  .position-card {
+    border-radius: 14px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--panel-shadow);
+  }
+  .position-icon {
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    background: rgba(13,110,253,.12);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    font-size: 22px;
+  }
+  .position-label {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: .02em;
+    color: #0d6efd;
+  }
+  .position-sub { font-size: 12px; color: var(--muted-text); }
+  .stock-hero {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 14px;
+    border-radius: 14px;
+    margin-bottom: 16px;
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .stock-hero.ok  { background: rgba(25,135,84,.1); color: #198754; border: 1px solid rgba(25,135,84,.25); }
+  .stock-hero.low { background: rgba(255,193,7,.12); color: #856404; border: 1px solid rgba(255,193,7,.3); }
+  body[data-theme="dark"] .stock-hero.low { color: #ffc107; }
+  .stock-hero.out { background: rgba(220,53,69,.1); color: #dc3545; border: 1px solid rgba(220,53,69,.2); }
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .detail-cell {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .detail-cell-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--muted-text);
+    margin-bottom: 2px;
+  }
+  .detail-cell-value {
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .action-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+  .action-btns .btn { flex: 1; min-width: 120px; padding: .6rem 1rem; font-size: 15px; border-radius: 10px; }
+</style>
+
+<div class="item-card">
+
+  <!-- Hero card: name + category -->
+  <div class="item-hero">
+    <div class="item-category-label">
+      {% if item.category %}
+        <span class="item-category-dot" style="background:{{ item.category.color }}"></span>
+        {{ item.category.name }}
+        {% if item.subtype %} · {{ item.subtype.name }}{% endif %}
+      {% endif %}
+    </div>
+    <div class="item-name">{{ compose_caption(item) }}</div>
+    {% if item.description %}
+      <div class="text-muted small mt-1">{{ item.description }}</div>
+    {% endif %}
+  </div>
+
+  <!-- Position -->
+  {% if position %}
+  <div class="position-card">
+    <div class="position-icon">📍</div>
+    <div>
+      <div class="position-label">{{ position }}</div>
+      <div class="position-sub">Posizione in magazzino</div>
+    </div>
+  </div>
+  {% else %}
+  <div class="position-card" style="opacity:.6">
+    <div class="position-icon" style="background:rgba(108,117,125,.12)">📦</div>
+    <div>
+      <div class="fw-semibold">Non posizionato</div>
+      <div class="position-sub">Nessuna posizione assegnata</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Stock level -->
+  {% if item.quantity <= 0 %}
+    <div class="stock-hero out">
+      <span>⚠</span>
+      <span>Esaurito</span>
+    </div>
+  {% elif item.quantity <= low_stock_threshold %}
+    <div class="stock-hero low">
+      <span>⚡</span>
+      <span>Scorte basse — {{ item.quantity }} pz</span>
+    </div>
+  {% else %}
+    <div class="stock-hero ok">
+      <span>✓</span>
+      <span>Disponibile — {{ item.quantity }} pz</span>
+    </div>
+  {% endif %}
+
+  <!-- Detail grid -->
+  <div class="detail-grid">
+    {% if item.thread_size %}
+    <div class="detail-cell">
+      <div class="detail-cell-label">Misura</div>
+      <div class="detail-cell-value">{{ item.thread_size }}</div>
+    </div>
+    {% endif %}
+    {% if item.outer_d_mm %}
+    <div class="detail-cell">
+      <div class="detail-cell-label">Ø esterno</div>
+      <div class="detail-cell-value">{{ '%.2f'|format(item.outer_d_mm) }} mm</div>
+    </div>
+    {% endif %}
+    {% set mm = formatted_main_measure(item) %}
+    {% if mm %}
+    <div class="detail-cell">
+      <div class="detail-cell-label">{{ measure_label_for_category(item.category, include_units=False) }}</div>
+      <div class="detail-cell-value">{{ mm }}</div>
+    </div>
+    {% endif %}
+    {% if item.material %}
+    <div class="detail-cell">
+      <div class="detail-cell-label">Materiale</div>
+      <div class="detail-cell-value">{{ item.material.name }}</div>
+    </div>
+    {% endif %}
+    {% if item.finish %}
+    <div class="detail-cell">
+      <div class="detail-cell-label">Finitura</div>
+      <div class="detail-cell-value">{{ item.finish.name }}</div>
+    </div>
+    {% endif %}
+    {% if item.thread_standard %}
+    <div class="detail-cell">
+      <div class="detail-cell-label">Standard</div>
+      <div class="detail-cell-value">{{ item.thread_standard }}</div>
+    </div>
+    {% endif %}
+    {% for val, field in custom_values %}
+      {% if val.value %}
+      <div class="detail-cell">
+        <div class="detail-cell-label">{{ field.name }}{% if field.unit %} ({{ field.unit }}){% endif %}</div>
+        <div class="detail-cell-value">{{ val.value }}</div>
+      </div>
+      {% endif %}
+    {% endfor %}
+  </div>
+
+  <!-- Actions -->
+  <div class="action-btns">
+    <a href="{{ url_for('articles', q=compose_caption(item)) }}" class="btn btn-outline-primary">
+      Cerca simili
+    </a>
+    {% if can_manage_items %}
+    <a href="{{ url_for('edit_item', item_id=item.id) }}" class="btn btn-outline-secondary">
+      Modifica
+    </a>
+    {% endif %}
+  </div>
+
+  <div class="text-muted small text-center mt-3">ID: {{ item.id }}
+    {% if item.updated_at %} · Aggiornato: {{ item.updated_at.strftime('%d/%m/%Y') }}{% endif %}
+  </div>
+
+</div>
+{% endblock %}

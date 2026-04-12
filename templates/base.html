@@ -418,6 +418,36 @@
         confirmModal.show();
       }, true);
 
+      // --- Form submit feedback (spinner on submit buttons) ---
+      // Exclude: filter forms (GET), search forms, label/PDF forms (open new tab)
+      const SUBMIT_SKIP_IDS = new Set(['itemFilter', 'labelForm']);
+      document.addEventListener('submit', (e) => {
+        const form = e.target;
+        if (SUBMIT_SKIP_IDS.has(form.id)) return;
+        if (form.dataset.confirm && !form.dataset.confirmed) return; // handled by confirm modal
+        if (form.method && form.method.toLowerCase() === 'get') return;
+        // Disable all submit buttons and show spinner on the one that was clicked
+        const submitBtns = form.querySelectorAll('[type="submit"], button:not([type])');
+        submitBtns.forEach(btn => {
+          btn.disabled = true;
+          if (btn === document.activeElement || submitBtns.length === 1) {
+            const original = btn.innerHTML;
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status"></span>${original}`;
+            btn.dataset.originalHtml = original;
+          }
+        });
+        // Safety re-enable after 8s (in case of error/navigation fail)
+        setTimeout(() => {
+          submitBtns.forEach(btn => {
+            btn.disabled = false;
+            if (btn.dataset.originalHtml) {
+              btn.innerHTML = btn.dataset.originalHtml;
+              delete btn.dataset.originalHtml;
+            }
+          });
+        }, 8000);
+      }, false);
+
       // --- Global Search Autocomplete ---
       const searchWrap = document.getElementById('globalSearchWrap');
       const searchBtn  = document.getElementById('globalSearchBtn');
@@ -525,10 +555,37 @@
       });
       // Shortcut '/' per aprire la ricerca
       document.addEventListener('keydown', e => {
-        if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA' && document.activeElement.tagName !== 'SELECT') {
+        const active = document.activeElement;
+        const typing = active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT' || active.isContentEditable;
+        if (e.key === '/' && !typing) {
           e.preventDefault();
           openSearch();
         }
+        // 'n' → nuovo articolo (pagina articoli/index)
+        if (e.key === 'n' && !typing && !e.ctrlKey && !e.metaKey) {
+          const newBtn = document.querySelector('a[href="#newItemForm"]');
+          if (newBtn) { e.preventDefault(); newBtn.click(); document.getElementById('newItemForm')?.scrollIntoView({ behavior: 'smooth' }); }
+        }
+        // 'Escape' → chiudi modal/search aperta
+        if (e.key === 'Escape' && !typing) {
+          closeSearch();
+        }
+      });
+
+      // --- Keyboard shortcuts hint ---
+      // Show a small "?" tooltip in navbar corner with shortcut reference
+      const kbHint = document.createElement('span');
+      kbHint.innerHTML = '?';
+      kbHint.title = 'Scorciatoie: / Cerca   n Nuovo articolo   Esc Chiudi';
+      kbHint.className = 'btn btn-outline-light btn-sm d-none d-md-flex align-items-center';
+      kbHint.style.cssText = 'width:26px;height:26px;padding:0;font-size:12px;font-weight:700;opacity:.6;cursor:help;';
+      kbHint.setAttribute('data-bs-toggle', 'tooltip');
+      kbHint.setAttribute('data-bs-placement', 'bottom');
+      kbHint.setAttribute('data-bs-title', '/ Cerca &nbsp; n Nuovo articolo &nbsp; Esc Chiudi');
+      document.querySelector('.navbar .container-fluid .d-flex')?.appendChild(kbHint);
+      // Init Bootstrap tooltips on elements with data-bs-toggle="tooltip"
+      document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
+        new bootstrap.Tooltip(el, { html: true });
       });
     });
   </script>
