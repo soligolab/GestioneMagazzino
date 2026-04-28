@@ -362,6 +362,33 @@ class MqttSettings(db.Model):
     include_item_finish = db.Column(db.Boolean, nullable=False, default=False)
     include_empty = db.Column(db.Boolean, nullable=False, default=True)
 
+class KatodoSettings(db.Model):
+    id      = db.Column(db.Integer, primary_key=True)
+    enabled = db.Column(db.Boolean, nullable=False, default=False)
+    api_url = db.Column(db.String(300), nullable=True)
+    api_key = db.Column(db.String(200), nullable=True)
+
+class KatodoProduct(db.Model):
+    __tablename__ = 'katodo_product'
+    id                 = db.Column(db.Integer, primary_key=True)
+    ps_id              = db.Column(db.Integer, unique=True, nullable=False, index=True)
+    reference          = db.Column(db.String(100), nullable=True, index=True)
+    supplier_reference = db.Column(db.String(100), nullable=True)
+    name               = db.Column(db.String(512), nullable=True)
+    description_short  = db.Column(db.Text, nullable=True)
+    description        = db.Column(db.Text, nullable=True)
+    manufacturer_name  = db.Column(db.String(200), nullable=True)
+    category_name      = db.Column(db.String(200), nullable=True)
+    price              = db.Column(db.Float, nullable=True)
+    wholesale_price    = db.Column(db.Float, nullable=True)
+    weight             = db.Column(db.Float, nullable=True)
+    active             = db.Column(db.Boolean, nullable=True)
+    quantity           = db.Column(db.Integer, nullable=True, default=0)
+    ps_image_id        = db.Column(db.Integer, nullable=True)
+    ps_date_add        = db.Column(db.DateTime, nullable=True)
+    ps_date_upd        = db.Column(db.DateTime, nullable=True)
+    synced_at          = db.Column(db.DateTime, nullable=True)
+
 class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
@@ -1125,6 +1152,31 @@ def ensure_mqtt_settings_columns():
     if added:
         db.session.commit()
 
+def ensure_katodo_settings_columns():
+    """Aggiunge eventuali nuove colonne della configurazione Katodo (compatibilità DB esistenti)."""
+    try:
+        rows = db.session.execute(text("PRAGMA table_info(katodo_settings)")).fetchall()
+    except Exception:
+        return
+    existing_cols = {r[1] for r in rows}
+    new_cols = [
+        ("enabled", "BOOLEAN", 0),
+        ("api_url",  "VARCHAR(300)", None),
+        ("api_key",  "VARCHAR(200)", None),
+    ]
+    added = False
+    for col_name, col_type, default_val in new_cols:
+        if col_name not in existing_cols:
+            try:
+                default_sql = f" DEFAULT {default_val}" if default_val is not None else ""
+                db.session.execute(text(f"ALTER TABLE katodo_settings ADD COLUMN {col_name} {col_type}{default_sql}"))
+                added = True
+            except Exception:
+                db.session.rollback()
+                return
+    if added:
+        db.session.commit()
+
 def ensure_slot_columns():
     """Aggiunge eventuali nuove colonne alla tabella slot (compatibilità DB esistenti)."""
     try:
@@ -1190,6 +1242,7 @@ def ensure_core_schema():
     ensure_item_columns()
     ensure_category_columns()
     ensure_mqtt_settings_columns()
+    ensure_katodo_settings_columns()
     ensure_slot_columns()
     ensure_user_columns()
     _schema_checked = True
@@ -1375,6 +1428,53 @@ def get_mqtt_settings() -> MqttSettings:
         db.session.commit()
     return s
 
+def get_katodo_settings() -> KatodoSettings:
+    ensure_core_schema()
+    s = KatodoSettings.query.get(1)
+    if not s:
+        s = KatodoSettings(
+            id=1,
+            enabled=False,
+            api_url="https://katodo.com/api/",
+            api_key=None,
+        )
+        db.session.add(s)
+        db.session.commit()
+    return s
+
+def prestashop_api_request(path: str, settings: KatodoSettings, params: dict = None, timeout: int = 10) -> dict:
+    """Esegue GET al WebService PrestaShop. Restituisce {ok, data, status_code, error}."""
+    import requests as _requests
+    if not settings.enabled:
+        return {"ok": False, "data": None, "status_code": None, "error": "Integrazione Katodo non abilitata."}
+    if not settings.api_key or not settings.api_url:
+        return {"ok": False, "data": None, "status_code": None, "error": "API key o URL non configurati."}
+    base = settings.api_url.rstrip("/")
+    url = f"{base}/{path.lstrip('/')}" if path else f"{base}/"
+    merged_params = {"output_format": "JSON"}
+    if params:
+        merged_params.update(params)
+    merged_params["ws_key"] = settings.api_key  # nginx strips Authorization header on shared hosting
+    try:
+        resp = _requests.get(url, params=merged_params, timeout=timeout)
+        if resp.status_code == 200:
+            try:
+                data = resp.json()
+            except ValueError:
+                data = {"raw": resp.text}
+            return {"ok": True, "data": data, "status_code": 200, "error": None}
+        return {"ok": False, "data": None, "status_code": resp.status_code, "error": f"HTTP {resp.status_code}: {resp.text[:300]}"}
+    except Exception as exc:
+        return {"ok": False, "data": None, "status_code": None, "error": str(exc)}
+
+def ps_image_url(api_url: str, image_id: int, size: str = "home_default") -> str:
+    """Costruisce l'URL diretto dell'immagine PrestaShop senza richiedere autenticazione."""
+    from urllib.parse import urlparse
+    parsed = urlparse(api_url or "https://katodo.com/api/")
+    base = f"{parsed.scheme}://{parsed.netloc}"
+    digits = "/".join(str(image_id))
+    return f"{base}/img/p/{digits}/{image_id}-{size}.jpg"
+
 def get_or_create_permission(key: str, label: str, description: Optional[str] = None, is_system: bool = False) -> Permission:
     perm = Permission.query.filter_by(key=key).first()
     if not perm:
@@ -1399,6 +1499,7 @@ def ensure_auth_defaults():
         ("manage_locations", "Gestione ubicazioni", "Cassettiere, ubicazioni e slot", True),
         ("manage_users", "Gestione utenti", "Assegnazione ruoli agli utenti", True),
         ("manage_roles", "Configurazione ruoli", "Creazione ruoli e permessi", True),
+        ("manage_katodo", "Katodo.com", "Accesso ai dati del negozio PrestaShop katodo.com", True),
     ]
     perms_by_key = {}
     for key, label, description, is_system in default_permissions:
@@ -1410,6 +1511,11 @@ def ensure_auth_defaults():
 
     if not admin_role.permissions:
         admin_role.permissions = list(perms_by_key.values())
+    else:
+        existing_keys = {p.key for p in admin_role.permissions}
+        for perm in perms_by_key.values():
+            if perm.key not in existing_keys:
+                admin_role.permissions.append(perm)
     if not operator_role.permissions:
         operator_role.permissions = [
             perms_by_key["manage_items"],
@@ -1464,6 +1570,8 @@ def required_permissions_for_path(path: str) -> Optional[set]:
         return {"manage_items"}
     if path == "/admin":
         return {"manage_items"}
+    if path.startswith("/admin/katodo"):
+        return {"manage_katodo"}
     return None
 
 def mqtt_payload_for_slot(cabinet: Cabinet, col_code: str, row_num: int, settings: MqttSettings):
@@ -4080,6 +4188,279 @@ def mqtt_publish_slot():
     if result.get("skipped"):
         status = 200
     return jsonify(result), status
+
+
+# ===================== KATODO.COM — PRESTASHOP INTEGRATION =====================
+
+@app.route("/admin/katodo/settings", methods=["GET", "POST"])
+@login_required
+def katodo_settings():
+    s = get_katodo_settings()
+    if request.method == "POST":
+        try:
+            s.enabled = bool(request.form.get("enabled"))
+            url = (request.form.get("api_url") or "").strip()
+            s.api_url = url or "https://katodo.com/api/"
+            if request.form.get("clear_api_key"):
+                s.api_key = None
+            else:
+                key = (request.form.get("api_key") or "").strip()
+                if key:
+                    s.api_key = key
+            db.session.commit()
+            flash("Configurazione Katodo salvata.", "success")
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Errore salvataggio: {e}", "danger")
+        return redirect(url_for("katodo_settings"))
+    return render_template("admin/katodo_settings.html", s=s)
+
+@app.route("/admin/katodo/test", methods=["POST"])
+@login_required
+def katodo_test():
+    s = get_katodo_settings()
+    result = prestashop_api_request("", s, timeout=8)
+    if result["ok"]:
+        data = result["data"] or []
+        resources = data if isinstance(data, list) else list((data.get("api", data)).keys())
+        return jsonify({"ok": True, "resources": resources})
+    return jsonify({"ok": False, "error": result["error"], "status_code": result["status_code"]})
+
+@app.route("/admin/katodo/field_discovery")
+@login_required
+def katodo_field_discovery():
+    s = get_katodo_settings()
+    schema_result = prestashop_api_request("products", s, params={"schema": "full"})
+    example_result = None
+    example_id = None
+
+    list_result = prestashop_api_request("products", s)
+    if list_result["ok"]:
+        ids = (list_result["data"] or {}).get("products", [])
+        if ids:
+            first = ids[0]
+            example_id = first.get("id") if isinstance(first, dict) else first
+            if example_id:
+                example_result = prestashop_api_request(f"products/{example_id}", s)
+
+    schema_fields = {}
+    example_values = {}
+
+    if schema_result["ok"]:
+        raw = schema_result["data"] or {}
+        product_schema = raw.get("product", {})
+        for key, meta in product_schema.items():
+            if isinstance(meta, dict):
+                attrs = meta.get("@attributes", {})
+                schema_fields[key] = {
+                    "type": attrs.get("type", ""),
+                    "required": attrs.get("required", ""),
+                }
+            else:
+                schema_fields[key] = {"type": type(meta).__name__, "required": ""}
+
+    if example_result and example_result["ok"]:
+        product_data = (example_result["data"] or {}).get("product", {})
+        for key, val in product_data.items():
+            if isinstance(val, dict):
+                lang_vals = val.get("language", [])
+                if isinstance(lang_vals, list) and lang_vals:
+                    first_lang = lang_vals[0]
+                    example_values[key] = str(first_lang.get("#text", first_lang))[:120]
+                elif isinstance(lang_vals, dict):
+                    example_values[key] = str(lang_vals.get("#text", ""))[:120]
+                else:
+                    example_values[key] = str(val)[:120]
+            else:
+                example_values[key] = str(val)[:120] if val is not None else ""
+
+    return render_template(
+        "admin/katodo_field_discovery.html",
+        s=s,
+        schema_fields=schema_fields,
+        example_values=example_values,
+        example_id=example_id,
+        schema_error=schema_result.get("error"),
+        example_error=example_result.get("error") if example_result else None,
+    )
+
+@app.route("/admin/katodo/products")
+@login_required
+def katodo_products():
+    s = get_katodo_settings()
+    products = KatodoProduct.query.order_by(KatodoProduct.reference).all()
+    last_sync = db.session.query(db.func.max(KatodoProduct.synced_at)).scalar()
+    return render_template("admin/katodo_products.html", s=s, products=products,
+                           last_sync=last_sync, ps_image_url=ps_image_url)
+
+@app.route("/admin/katodo/import", methods=["POST"])
+@login_required
+def katodo_import():
+    s = get_katodo_settings()
+
+    def _sse(data: dict) -> str:
+        import json as _json
+        return f"data: {_json.dumps(data)}\n\n"
+
+    def _flt(val):
+        try:
+            return float(val) if val not in (None, "", "0.000000") else None
+        except (ValueError, TypeError):
+            return None
+
+    def generate():
+        import json as _json
+
+        if not s.enabled or not s.api_key:
+            yield _sse({"done": True, "error": "Integrazione non configurata."})
+            return
+
+        # ---- categorie ----
+        app.logger.info("[Katodo import] Caricamento categorie...")
+        yield _sse({"step": "Caricamento categorie…", "progress": 2, "done": False})
+        cats_result = prestashop_api_request("categories", s,
+                                             params={"display": "[id,name]", "language": "1"},
+                                             timeout=60)
+        if not cats_result["ok"]:
+            msg = f"Errore categorie: {cats_result['error']}"
+            app.logger.error(f"[Katodo import] {msg}")
+            yield _sse({"done": True, "error": msg})
+            return
+        category_cache = {str(c["id"]): c.get("name", "")
+                          for c in cats_result["data"].get("categories", cats_result["data"])}
+        app.logger.info(f"[Katodo import] {len(category_cache)} categorie caricate.")
+        yield _sse({"step": f"{len(category_cache)} categorie caricate.", "progress": 5, "done": False})
+
+        # ---- paginazione prodotti ----
+        display_fields = "[id,reference,supplier_reference,manufacturer_name,id_category_default,price,wholesale_price,weight,active,date_add,date_upd,id_default_image,name,description_short,description,quantity]"
+        page_size = 25      # piccolo per server lenti — aggiorna UI ogni 25 prodotti
+        offset = 0
+        total_new = 0
+        total_upd = 0
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+        while True:
+            limit = f"{page_size},{offset}" if offset else str(page_size)
+            app.logger.info(f"[Katodo import] Richiesta prodotti offset={offset} limit={page_size}…")
+            yield _sse({"step": f"Recupero prodotti {offset + 1}–{offset + page_size}…",
+                        "progress": min(10 + offset // 6, 90), "done": False})
+
+            result = prestashop_api_request("products", s,
+                                            params={"display": display_fields, "language": "1", "limit": limit},
+                                            timeout=120)
+            if not result["ok"]:
+                msg = f"Errore prodotti (offset {offset}): {result['error']}"
+                app.logger.error(f"[Katodo import] {msg}")
+                yield _sse({"done": True, "error": msg})
+                return
+
+            page_prods = result["data"].get("products", result["data"]) if isinstance(result["data"], dict) else result["data"]
+            if not page_prods:
+                app.logger.info("[Katodo import] Nessun altro prodotto — fine paginazione.")
+                break
+
+            for p in page_prods:
+                ps_id = int(p.get("id", 0) or 0)
+                if not ps_id:
+                    continue
+
+                date_add = date_upd = None
+                try:
+                    raw_add = str(p.get("date_add") or "")
+                    if raw_add and raw_add.replace("0","").replace("-","").replace(" ","").replace(":",""):
+                        date_add = datetime.strptime(raw_add, "%Y-%m-%d %H:%M:%S")
+                    raw_upd = str(p.get("date_upd") or "")
+                    if raw_upd and raw_upd.replace("0","").replace("-","").replace(" ","").replace(":",""):
+                        date_upd = datetime.strptime(raw_upd, "%Y-%m-%d %H:%M:%S")
+                except (ValueError, TypeError):
+                    pass
+
+                ps_image_id = None
+                try:
+                    v = int(p.get("id_default_image") or 0)
+                    if v > 0:
+                        ps_image_id = v
+                except (TypeError, ValueError):
+                    pass
+
+                fields = dict(
+                    reference          = p.get("reference") or None,
+                    supplier_reference = p.get("supplier_reference") or None,
+                    name               = p.get("name") or None,
+                    description_short  = p.get("description_short") or None,
+                    description        = p.get("description") or None,
+                    manufacturer_name  = p.get("manufacturer_name") or None,
+                    category_name      = category_cache.get(str(p.get("id_category_default", ""))),
+                    price              = _flt(p.get("price")),
+                    wholesale_price    = _flt(p.get("wholesale_price")),
+                    weight             = _flt(p.get("weight")),
+                    active             = str(p.get("active")) == "1",
+                    quantity           = int(p.get("quantity") or 0),
+                    ps_image_id        = ps_image_id,
+                    ps_date_add        = date_add,
+                    ps_date_upd        = date_upd,
+                    synced_at          = now,
+                )
+                existing = KatodoProduct.query.filter_by(ps_id=ps_id).first()
+                if existing:
+                    for k, v in fields.items():
+                        setattr(existing, k, v)
+                    total_upd += 1
+                else:
+                    db.session.add(KatodoProduct(ps_id=ps_id, **fields))
+                    total_new += 1
+
+            db.session.commit()
+            processed = offset + len(page_prods)
+            app.logger.info(f"[Katodo import] Salvati {processed} prodotti (nuovi={total_new} aggiornati={total_upd}).")
+            yield _sse({"step": f"Salvati {processed} prodotti (nuovi: {total_new}, agg.: {total_upd})",
+                        "progress": min(10 + processed // 6, 90), "done": False,
+                        "count": processed})
+            offset += len(page_prods)
+            if len(page_prods) < page_size:
+                break
+
+        app.logger.info(f"[Katodo import] Completato — nuovi={total_new} aggiornati={total_upd} totale={total_new+total_upd}")
+        yield _sse({"done": True, "new": total_new, "updated": total_upd,
+                    "total": total_new + total_upd, "progress": 100,
+                    "step": "Importazione completata!"})
+
+    return Response(
+        stream_with_context(generate()),
+        content_type="text/event-stream",
+        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
+    )
+
+@app.route("/admin/katodo/products/<int:ps_id>", methods=["GET", "POST"])
+@login_required
+def katodo_product_detail(ps_id):
+    s = get_katodo_settings()
+    p = KatodoProduct.query.filter_by(ps_id=ps_id).first_or_404()
+    if request.method == "POST":
+        try:
+            p.reference          = (request.form.get("reference") or "").strip() or None
+            p.supplier_reference = (request.form.get("supplier_reference") or "").strip() or None
+            p.name               = (request.form.get("name") or "").strip() or None
+            p.description_short  = request.form.get("description_short") or None
+            p.description        = request.form.get("description") or None
+            p.manufacturer_name  = (request.form.get("manufacturer_name") or "").strip() or None
+            p.category_name      = (request.form.get("category_name") or "").strip() or None
+            price_raw = request.form.get("price", "").strip()
+            p.price = float(price_raw) if price_raw else None
+            wp_raw = request.form.get("wholesale_price", "").strip()
+            p.wholesale_price = float(wp_raw) if wp_raw else None
+            w_raw = request.form.get("weight", "").strip()
+            p.weight = float(w_raw) if w_raw else None
+            p.active   = bool(request.form.get("active"))
+            qty_raw = request.form.get("quantity", "0").strip()
+            p.quantity = int(qty_raw) if qty_raw.lstrip("-").isdigit() else p.quantity
+            db.session.commit()
+            flash("Prodotto aggiornato.", "success")
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Errore: {e}", "danger")
+        return redirect(url_for("katodo_product_detail", ps_id=ps_id))
+    return render_template("admin/katodo_product_detail.html", s=s, p=p, ps_image_url=ps_image_url)
 
 
 @app.route("/admin/slot_items/<int:item_id>/clear", methods=["POST"])

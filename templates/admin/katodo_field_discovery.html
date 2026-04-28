@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3>Katodo.com &mdash; Esplorazione campi prodotto</h3>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('katodo_products') }}" class="btn btn-outline-secondary btn-sm">Prodotti</a>
+    <a href="{{ url_for('katodo_settings') }}" class="btn btn-outline-secondary btn-sm">Impostazioni</a>
+  </div>
+</div>
+
+{% if not s.enabled or not s.api_key %}
+<div class="alert alert-warning">
+  Integrazione non configurata. <a href="{{ url_for('katodo_settings') }}">Vai alle impostazioni</a> per inserire la chiave API.
+</div>
+{% endif %}
+
+{% if schema_error %}
+<div class="alert alert-danger"><strong>Errore schema:</strong> {{ schema_error }}</div>
+{% endif %}
+{% if example_error %}
+<div class="alert alert-warning"><strong>Prodotto di esempio non caricabile:</strong> {{ example_error }}</div>
+{% endif %}
+
+{% if schema_fields %}
+<p class="text-muted small mb-2">
+  Schema completo del prodotto PrestaShop ({{ schema_fields | length }} campi).
+  {% if example_id %}Colonna <em>Valore esempio</em> estratta dal prodotto #{{ example_id }}.{% endif %}
+  Usa questa tabella per decidere quali campi importare nel prossimo step.
+</p>
+<div class="table-responsive">
+  <table class="table table-sm table-striped table-hover align-middle">
+    <thead class="table-sticky">
+      <tr>
+        <th style="width:220px;">Campo</th>
+        <th style="width:140px;">Tipo</th>
+        <th style="width:80px;">Richiesto</th>
+        <th>Valore esempio</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for field_name, meta in schema_fields.items() %}
+      <tr>
+        <td><code>{{ field_name }}</code></td>
+        <td>
+          {% if meta.type %}
+          <span class="badge bg-secondary">{{ meta.type }}</span>
+          {% else %}
+          <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if meta.required in ('1', 'true') %}
+          <span class="badge bg-danger">Sì</span>
+          {% else %}
+          <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+        <td>
+          {% set val = example_values.get(field_name, '') %}
+          {% if val %}
+          <span class="font-monospace small">{{ val }}</span>
+          {% else %}
+          <span class="text-muted fst-italic">—</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% elif not schema_error %}
+<div class="alert alert-warning">
+  Nessun campo trovato. Verifica che l'integrazione sia abilitata e la chiave API sia corretta.
+  <a href="{{ url_for('katodo_settings') }}">Vai alle impostazioni</a>
+</div>
+{% endif %}
+{% endblock %}

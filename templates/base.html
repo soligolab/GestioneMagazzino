@@ -261,6 +261,9 @@
           {% if current_user.has_permission('manage_config') or current_user.has_permission('manage_users') or current_user.has_permission('manage_roles') %}
             <a href="{{ url_for('admin_config') }}" class="btn btn-outline-light btn-sm {{ 'active' if request.endpoint == 'admin_config' else '' }}">Configurazione</a>
           {% endif %}
+          {% if current_user.has_permission('manage_katodo') %}
+            <a href="{{ url_for('katodo_products') }}" class="btn btn-outline-light btn-sm {{ 'active' if request.endpoint in ['katodo_settings','katodo_test','katodo_field_discovery','katodo_products','katodo_product_detail','katodo_import'] else '' }}">Katodo.com</a>
+          {% endif %}
           <div class="dropdown">
             <button class="btn btn-outline-light btn-sm dropdown-toggle d-flex align-items-center gap-2" data-bs-toggle="dropdown" aria-expanded="false">
               {% if current_user_avatar %}

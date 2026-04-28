@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3>Katodo.com &mdash; Impostazioni</h3>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('katodo_field_discovery') }}" class="btn btn-outline-secondary btn-sm">Esplora campi</a>
+    <a href="{{ url_for('katodo_products') }}" class="btn btn-outline-secondary btn-sm">Prodotti</a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="form-section">
+      <h5>Connessione API PrestaShop</h5>
+      <form method="post" action="{{ url_for('katodo_settings') }}" class="row g-3">
+        <div class="col-12">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" name="enabled" id="katodo_enabled" {{ 'checked' if s.enabled else '' }}>
+            <label class="form-check-label" for="katodo_enabled">Abilita integrazione Katodo</label>
+          </div>
+        </div>
+        <div class="col-12">
+          <label class="form-label">URL API PrestaShop</label>
+          <input class="form-control" name="api_url" value="{{ s.api_url or 'https://katodo.com/api/' }}" placeholder="https://katodo.com/api/">
+          <small class="text-muted">Deve terminare con /api/</small>
+        </div>
+        <div class="col-12">
+          <label class="form-label">API Key</label>
+          <input class="form-control font-monospace" type="password" name="api_key"
+                 placeholder="{{ 'Lascia vuoto per non cambiare' if s.api_key else 'Inserisci chiave API' }}">
+          {% if s.api_key %}
+          <small class="text-muted">Chiave salvata: <span class="font-monospace">{{ s.api_key[:6] }}****</span></small>
+          {% endif %}
+        </div>
+        {% if s.api_key %}
+        <div class="col-12">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="clear_api_key" id="katodo_clear_key">
+            <label class="form-check-label text-danger" for="katodo_clear_key">Cancella chiave salvata</label>
+          </div>
+        </div>
+        {% endif %}
+        <div class="col-12 d-flex gap-2 flex-wrap">
+          <button type="submit" class="btn btn-primary">Salva</button>
+          <button type="button" class="btn btn-outline-secondary" id="katodoTestBtn">
+            Testa connessione
+          </button>
+        </div>
+      </form>
+      <div id="katodoTestResult" class="mt-3" style="display:none;"></div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="form-section">
+      <h5>Prossimi passi</h5>
+      <ol class="mb-0 ps-3">
+        <li>Configura l'API key e testa la connessione</li>
+        <li><a href="{{ url_for('katodo_field_discovery') }}">Esplora i campi disponibili</a> per decidere cosa importare</li>
+        <li>Preparazione DB e importazione dati (Step 2)</li>
+        <li>UI catalogo articoli (Step 3)</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<script>
+document.getElementById('katodoTestBtn').addEventListener('click', async function () {
+  const btn = this;
+  const resultDiv = document.getElementById('katodoTestResult');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Test in corso...';
+  resultDiv.style.display = 'none';
+  try {
+    const resp = await fetch("{{ url_for('katodo_test') }}", { method: 'POST', headers: {'X-CSRFToken': ''} });
+    const data = await resp.json();
+    if (data.ok) {
+      const resList = (data.resources || []).join(', ') || '(nessuna risorsa trovata)';
+      resultDiv.className = 'alert alert-success mt-3';
+      resultDiv.innerHTML = '<strong>Connessione riuscita!</strong><br><small class="text-muted">Risorse disponibili: ' + resList + '</small>';
+    } else {
+      resultDiv.className = 'alert alert-danger mt-3';
+      resultDiv.innerHTML = '<strong>Errore:</strong> ' + (data.error || 'Risposta non valida') +
+        (data.status_code ? ' <span class="badge bg-secondary">HTTP ' + data.status_code + '</span>' : '');
+    }
+  } catch (e) {
+    resultDiv.className = 'alert alert-danger mt-3';
+    resultDiv.innerHTML = '<strong>Errore di rete:</strong> ' + e.message;
+  } finally {
+    resultDiv.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Testa connessione';
+  }
+});
+</script>
+{% endblock %}

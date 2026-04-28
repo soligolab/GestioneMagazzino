@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  #katodoTable > tfoot { display: table-header-group; }
+  #katodoTable thead th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+  #katodoTable thead th.sortable:hover { background: var(--table-head-hover, #dee2e6); }
+  #katodoTable tfoot th {
+    padding: 3px 5px;
+    background: var(--table-head-bg);
+    position: sticky; top: 2.4rem; z-index: 1;
+  }
+  #katodoTable tfoot input,
+  #katodoTable tfoot select {
+    width: 100%; font-size: .78rem; padding: 2px 5px;
+    border-radius: 4px; border: 1px solid var(--panel-border);
+    background: var(--panel-bg); color: var(--page-text);
+  }
+  #katodoTable tfoot input:focus,
+  #katodoTable tfoot select:focus { outline: 2px solid #0d6efd55; border-color: #0d6efd; }
+  .sort-icon { font-size: .7rem; opacity: .5; }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h3 class="mb-0">Katodo.com &mdash; Prodotti
+    {% if products %}<span class="badge bg-secondary fs-6 fw-normal ms-2" id="rowCount">{{ products|length }}</span>{% endif %}
+  </h3>
+  <div class="d-flex gap-2 flex-wrap align-items-center">
+    {% if last_sync %}<small class="text-muted">Ultimo sync: {{ last_sync.strftime('%d/%m/%Y %H:%M') }}</small>{% endif %}
+    <button class="btn btn-success btn-sm" id="importBtn">
+      <span id="importSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+      Importa / Aggiorna
+    </button>
+    <a href="{{ url_for('katodo_field_discovery') }}" class="btn btn-outline-secondary btn-sm">Campi</a>
+    <a href="{{ url_for('katodo_settings') }}" class="btn btn-outline-secondary btn-sm">Impostazioni</a>
+  </div>
+</div>
+
+<div id="importResult" class="alert d-none mb-3"></div>
+<div id="importProgress" class="mb-3 d-none">
+  <div class="d-flex justify-content-between small text-muted mb-1">
+    <span id="importStep">Avvio…</span><span id="importPct">0%</span>
+  </div>
+  <div class="progress" style="height:8px;">
+    <div id="importBar" class="progress-bar progress-bar-striped progress-bar-animated bg-success"
+         role="progressbar" style="width:0%"></div>
+  </div>
+</div>
+
+{% if not s.enabled or not s.api_key %}
+<div class="alert alert-warning">
+  Integrazione non configurata. <a href="{{ url_for('katodo_settings') }}">Vai alle impostazioni</a>.
+</div>
+
+{% elif products %}
+<div class="table-responsive">
+  <table class="table table-sm table-striped table-hover align-middle" id="katodoTable">
+    <thead>
+      <tr>
+        <th style="width:52px;"></th>
+        <th class="sortable" data-col="1">Codice <span class="sort-icon">▲</span></th>
+        <th class="sortable" data-col="2">Nome <span class="sort-icon">⇅</span></th>
+        <th class="sortable" data-col="3">Produttore <span class="sort-icon">⇅</span></th>
+        <th class="sortable" data-col="4">Categoria <span class="sort-icon">⇅</span></th>
+        <th class="sortable text-end" data-col="5">Prezzo <span class="sort-icon">⇅</span></th>
+        <th class="sortable text-end" data-col="6">Costo <span class="sort-icon">⇅</span></th>
+        <th class="sortable text-center" data-col="7">Qtà <span class="sort-icon">⇅</span></th>
+        <th class="sortable text-center" data-col="8">Attivo <span class="sort-icon">⇅</span></th>
+      </tr>
+    </thead>
+    <tfoot>
+      <tr>
+        <th></th>
+        <th><input data-col="1" type="search" placeholder="Codice / MPN…"></th>
+        <th><input data-col="2" type="search" placeholder="Nome…"></th>
+        <th><input data-col="3" type="search" placeholder="Produttore…"></th>
+        <th><input data-col="4" type="search" placeholder="Categoria…"></th>
+        <th><input data-col="5" type="search" placeholder="es. 5.00"></th>
+        <th><input data-col="6" type="search" placeholder="es. 2.00"></th>
+        <th><input data-col="7" type="search" placeholder="es. 0"></th>
+        <th>
+          <select data-col="8">
+            <option value="">Tutti</option>
+            <option value="attivo">Attivo</option>
+            <option value="non attivo">Non attivo</option>
+          </select>
+        </th>
+      </tr>
+    </tfoot>
+    <tbody>
+      {% for p in products %}
+      <tr style="cursor:pointer;"
+          onclick="window.location='{{ url_for('katodo_product_detail', ps_id=p.ps_id) }}'">
+        <td class="p-1 text-center" data-search="" data-order="0">
+          {% if p.ps_image_id %}
+          <img src="{{ ps_image_url(s.api_url, p.ps_image_id, 'cart_default') }}"
+               alt="" width="40" height="40" style="object-fit:contain;"
+               onerror="this.style.display='none'">
+          {% else %}
+          <span class="text-muted" style="font-size:1.3rem;">&#128230;</span>
+          {% endif %}
+        </td>
+        <td class="font-monospace small"
+            data-search="{{ (p.reference or '') ~ ' ' ~ (p.supplier_reference or '') }}"
+            data-order="{{ p.reference or '' }}">
+          {{ p.reference or '—' }}
+          {% if p.supplier_reference %}<br><span class="text-muted" style="font-size:.75rem;">{{ p.supplier_reference }}</span>{% endif %}
+        </td>
+        <td data-search="{{ p.name or '' }}" data-order="{{ p.name or '' }}">{{ p.name or '—' }}</td>
+        <td class="small text-muted" data-search="{{ p.manufacturer_name or '' }}" data-order="{{ p.manufacturer_name or '' }}">{{ p.manufacturer_name or '—' }}</td>
+        <td class="small text-muted" data-search="{{ p.category_name or '' }}" data-order="{{ p.category_name or '' }}">{{ p.category_name or '—' }}</td>
+        <td class="text-end small" data-search="{{ p.price or '' }}" data-order="{{ p.price or 0 }}">
+          {% if p.price %}€ {{ "%.2f"|format(p.price) }}{% else %}—{% endif %}
+        </td>
+        <td class="text-end small text-muted" data-search="{{ p.wholesale_price or '' }}" data-order="{{ p.wholesale_price or 0 }}">
+          {% if p.wholesale_price %}€ {{ "%.2f"|format(p.wholesale_price) }}{% else %}—{% endif %}
+        </td>
+        <td class="text-center" data-search="{{ p.quantity if p.quantity is not none else '' }}" data-order="{{ p.quantity or 0 }}">
+          <span class="badge {{ 'bg-success' if p.quantity and p.quantity > 0 else 'bg-secondary' }}">
+            {{ p.quantity if p.quantity is not none else '—' }}
+          </span>
+        </td>
+        <td class="text-center"
+            data-search="{{ 'attivo' if p.active else 'non attivo' }}"
+            data-order="{{ 1 if p.active else 0 }}">
+          {% if p.active %}<span class="badge bg-success">Sì</span>
+          {% else %}<span class="badge bg-secondary">No</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% else %}
+<div class="alert alert-info">
+  Nessun prodotto importato. Clicca <strong>Importa / Aggiorna</strong> per avviare l'importazione.
+</div>
+{% endif %}
+
+<script>
+{% if products %}
+(function () {
+  var table  = document.getElementById('katodoTable');
+  var tbody  = table.tBodies[0];
+  var rows   = Array.from(tbody.rows);
+  var badge  = document.getElementById('rowCount');
+  var timers = {};
+  var state  = { col: 1, dir: 1 };
+  var numCols = [5, 6, 7];
+
+  /* ── Ordinamento ──────────────────────────────────────────── */
+  function doSort() {
+    var col = state.col, dir = state.dir, isNum = numCols.indexOf(col) !== -1;
+    rows.sort(function (a, b) {
+      var av = (a.cells[col].getAttribute('data-order') || a.cells[col].textContent).trim();
+      var bv = (b.cells[col].getAttribute('data-order') || b.cells[col].textContent).trim();
+      if (isNum) return (parseFloat(av) || 0 - (parseFloat(bv) || 0)) * dir;
+      return av.localeCompare(bv, 'it', { sensitivity: 'base' }) * dir;
+    });
+    rows.forEach(function (r) { tbody.appendChild(r); });
+    table.querySelectorAll('thead .sortable').forEach(function (th) {
+      var c = +th.dataset.col;
+      var ic = th.querySelector('.sort-icon');
+      if (ic) ic.textContent = c === col ? (dir === 1 ? '▲' : '▼') : '⇅';
+    });
+  }
+
+  /* ── Filtro ───────────────────────────────────────────────── */
+  function doFilter() {
+    var filters = [];
+    table.querySelectorAll('tfoot [data-col]').forEach(function (el) {
+      var v = el.value.trim().toLowerCase();
+      if (v) filters.push({ col: +el.dataset.col, val: v });
+    });
+    var visible = 0;
+    rows.forEach(function (row) {
+      var ok = filters.every(function (f) {
+        var cell = row.cells[f.col];
+        var text = ((cell.getAttribute('data-search') || cell.textContent) + '').toLowerCase();
+        return text.indexOf(f.val) !== -1;
+      });
+      row.style.display = ok ? '' : 'none';
+      if (ok) visible++;
+    });
+    if (badge) badge.textContent = visible === rows.length ? rows.length : visible + '/' + rows.length;
+  }
+
+  /* ── Event: click intestazione ────────────────────────────── */
+  table.querySelectorAll('thead .sortable').forEach(function (th) {
+    th.addEventListener('click', function () {
+      var c = +this.dataset.col;
+      state.dir = (state.col === c) ? -state.dir : 1;
+      state.col = c;
+      doSort();
+    });
+  });
+
+  /* ── Event: input filtro ──────────────────────────────────── */
+  table.querySelectorAll('tfoot input[data-col]').forEach(function (inp) {
+    inp.addEventListener('input', function () {
+      var k = inp.dataset.col;
+      clearTimeout(timers[k]);
+      timers[k] = setTimeout(doFilter, 200);
+    });
+  });
+  table.querySelectorAll('tfoot select[data-col]').forEach(function (sel) {
+    sel.addEventListener('change', doFilter);
+  });
+
+  /* Init */
+  doSort();
+})();
+{% endif %}
+
+/* ── Import SSE ─────────────────────────────────────────────── */
+document.getElementById('importBtn').addEventListener('click', async function () {
+  const btn = this, spinner = document.getElementById('importSpinner');
+  const resultDiv = document.getElementById('importResult');
+  const progressDiv = document.getElementById('importProgress');
+  const stepEl = document.getElementById('importStep');
+  const pctEl  = document.getElementById('importPct');
+  const barEl  = document.getElementById('importBar');
+
+  btn.disabled = true;
+  spinner.classList.remove('d-none');
+  resultDiv.className = 'alert d-none';
+  progressDiv.classList.remove('d-none');
+
+  const setP = (pct, step) => {
+    barEl.style.width = pct + '%'; pctEl.textContent = pct + '%';
+    if (step) stepEl.textContent = step;
+  };
+  setP(2, 'Avvio importazione…');
+
+  try {
+    const resp = await fetch("{{ url_for('katodo_import') }}", { method: 'POST' });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split('\n'); buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        let e; try { e = JSON.parse(line.slice(6)); } catch { continue; }
+        if (e.error) {
+          resultDiv.className = 'alert alert-danger mb-3';
+          resultDiv.innerHTML = '<strong>Errore:</strong> ' + e.error;
+          resultDiv.classList.remove('d-none');
+          progressDiv.classList.add('d-none');
+          btn.disabled = false; spinner.classList.add('d-none'); return;
+        }
+        setP(e.progress || 0, e.step || '');
+        if (e.done) {
+          setP(100, 'Completato!');
+          barEl.classList.remove('progress-bar-animated');
+          resultDiv.className = 'alert alert-success mb-3';
+          resultDiv.innerHTML = `<strong>Importazione completata!</strong> &nbsp; Nuovi: <strong>${e.new}</strong> — Aggiornati: <strong>${e.updated}</strong> — Totale: <strong>${e.total}</strong>`;
+          resultDiv.classList.remove('d-none');
+          setTimeout(() => location.reload(), 2000); return;
+        }
+      }
+    }
+  } catch (e) {
+    resultDiv.className = 'alert alert-danger mb-3';
+    resultDiv.innerHTML = '<strong>Errore di rete:</strong> ' + e.message;
+    resultDiv.classList.remove('d-none'); progressDiv.classList.add('d-none');
+  } finally { btn.disabled = false; spinner.classList.add('d-none'); }
+});
+</script>
+{% endblock %}
